@@ -8,3 +8,7 @@ collection of each dataset and over the days of the experiment the
 shape of the brain will change. In order to determine which neurons we
 are looking at, we'll need to estimate their most likely x,y, and z 
 coordinates within the stack.
+
+The goal is to produce a matrix C for each day of the experiment that
+describes the normalized 2d cross correlation between an image from
+that day for a range of z, x, y and rotation values.
