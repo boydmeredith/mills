@@ -2,6 +2,11 @@ function [theta_scores] = get_rot_similarity(ref,img,thetas)
 
 % based on code found at /matlabcentral/newsreader/view_thread/254141
 % probably not the right way to do this
+%
+% could transform to polar coordinates and then get correlations in 
+% the rotation and radial domains. Then, radial offsets will correspond
+% to offsets of x and y simultaneously
+
 % see: http://www.peterkovesi.com/matlabfns/
 
 P1 = radon(ref,0);
