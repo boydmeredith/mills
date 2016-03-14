@@ -1,4 +1,4 @@
-addpath(genpath('/Users/tyler/Documents/Princeton/Rotations/tank/code/'));
+addpath(genpath('/Users/tyler/Documents/Princeton/Rotations/tank/mills/'));
 
 data_dir = '~/Documents/Princeton/Rotations/tank/';
 
