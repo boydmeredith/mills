@@ -9,8 +9,10 @@ blksz       = 100;
 
 % load image
 img = load_and_norm_img(img_path);
+% get image dimensions
+[imgy imgx] = size(img);
 
-% divide image into blocks (define centers in reference to the stack images)
+% divide into blocks (define centers in reference to the stack images)
 stack_info  = imfinfo(stack_path);
 blk_cntrs   = make_blocks(stack_info(1).Height, stack_info(1).Width, blksz);
 nblks       = length(blk_cntrs.x);
@@ -24,22 +26,34 @@ for zx = z_range
         % TODO: should check to see if we need to check zstack slice zx for this block
         % TODO: add rotation
 
-        % get the indices of the current block
+        % create block indices 
         blk_yix = [(blk_cntrs.y(bx) - blksz/2):(blk_cntrs.y(bx) + blksz/2)];
         blk_xix = [(blk_cntrs.x(bx) - blksz/2):(blk_cntrs.x(bx) + blksz/2)];
-        % TODO: fix index exceeding matrix dimension 
+       
+        % crop the right and bottom blocks to avoiding trying to access out of bounds indices
+        blk_yix = blk_yix(blk_yix <= imgy);
+        blk_xix = blk_xix(blk_xix <= imgx);
+
+        % select block
         block   = img(blk_yix,blk_xix);
+
         figure(1); clf; imshow(block);  
         % get the cross correlation of this block against the stack image
         [c xoff yoff]   = get_xy_similarity(stack_slice, block);
         % correct the offsets returned 
         xoff = xoff - max(blk_xix);
         yoff = yoff - max(blk_yix);
-        
+        % TODO: verify that I have correctly calculated the offsets 
         % store xcorr values for allowable offsets
         xix = find(ismember(xoff,xoff_range));
         yix = find(ismember(yoff,yoff_range));
-        C(bx,:,:,zx) = c(yix,xix);
+        try
+            % pad c with nans so that it fits as expected even if we've cropped the blocks
+            c = padarray(c(yix,xix),[length(yoff_range)-length(yix) length(xoff_range)-length(xix)],nan,'post');
+            C(bx,:,:,zx) = c;
+        catch
+            keyboard;
+        end
         pause(.5);
 end
 
