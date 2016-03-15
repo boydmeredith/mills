@@ -1,4 +1,11 @@
 function [C theta_scores] = get_similarity(stack_path,img_path, z_range)
+% get_similarity(stack_path,img_path,z_range)
+% 
+%
+%
+%
+%
+%
 % allowed x,y offsets for maximizing cross correlation
 xoff_range  = -50:50;
 yoff_range  = -50:50;
@@ -39,22 +46,17 @@ for zx = z_range
 
         figure(1); clf; imshow(block);  
         % get the cross correlation of this block against the stack image
-        [c xoff yoff]   = get_xy_similarity(stack_slice, block);
-        % correct the offsets returned 
-        xoff = xoff - max(blk_xix);
-        yoff = yoff - max(blk_yix);
-        % TODO: verify that I have correctly calculated the offsets 
+        [c xoff yoff]   = block_xy_similarity(stack_slice, block, blk_cntrs.x(bx), blk_cntrs.y(bx));
+
         % store xcorr values for allowable offsets
         xix = find(ismember(xoff,xoff_range));
         yix = find(ismember(yoff,yoff_range));
-        try
-            % pad c with nans so that it fits as expected even if we've cropped the blocks
-            c = padarray(c(yix,xix),[length(yoff_range)-length(yix) length(xoff_range)-length(xix)],nan,'post');
-            C(bx,:,:,zx) = c;
-        catch
-            keyboard;
-        end
-        pause(.5);
+
+        % pad c with nans so that it fits as expected even if we've cropped the blocks
+        c = padarray(c(yix,xix),[length(yoff_range)-length(yix) length(xoff_range)-length(xix)],nan,'post');
+
+        C(bx,:,:,zx) = c;
+        keyboard;
 end
 
 end
