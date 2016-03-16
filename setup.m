@@ -1,5 +1,10 @@
-addpath(genpath('/Users/tyler/Documents/Princeton/Rotations/tank/mills/'));
-
+addpath(genpath('~/tank/mills/'));
+jlgauthi_util_dir = '/Volumes/tank/jlgauthi/code/utility';
+if exist(jlgauthi_util_dir)
+    addpath(jlgauthi_util_dir);
+else
+    addpath('utility');
+end
 data_dir = '~/Documents/Princeton/Rotations/tank/';
 
 easy_subject = 'J115';
