@@ -70,6 +70,7 @@ for di = 1:ndays
         
         % determine the neighborhood of z-values to look at
         z_to_check = blks_best_z(bi,di) + z_range;
+
         % get the cross correlation of this block against the stack image
         [c xoff yoff]   = get_xyz_similarity(stack(:,:,z_to_check), block, blk_cntrs.x(bi), blk_cntrs.y(bi), off_range);
 
@@ -80,7 +81,7 @@ for di = 1:ndays
         [~, ~, zix] = ind2sub(size(c),maxix);
         fprintf('\n\tfavorite z for this block in neighborhood around %i...', blks_best_z(bi, di));
         blks_best_z(bi,di) = z_to_check(zix); 
-        if bi < nblks
+        if di < ndays
             blks_best_z(bi,di+1) = blks_best_z(bi,di);
         end
         fprintf('s %i', blks_best_z(bi, di));
