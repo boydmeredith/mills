@@ -73,7 +73,7 @@ for di = 1:ndays
 
         % get the cross correlation of this block against the stack image
         [c xoff yoff]   = get_xyz_similarity(stack(:,:,z_to_check), block, blk_cntrs.x(bi), blk_cntrs.y(bi), off_range);
-
+        keyboard; % check that the c matrix actually fits in C
         C(bi,:,:,z_to_check) = c;
 
         % update best z with the z that has the max correlation
@@ -89,7 +89,7 @@ for di = 1:ndays
     end
     % now let's save this correlation matrix
     savepath = fullfile(data_dir,subj,[img_name(1:end-4) '_correlations.mat']); 
-    save(savepath, 'C','off_range')
+    save(savepath, 'C','off_range', 'blk_cntrs', 'blksz')
 end
 
 
