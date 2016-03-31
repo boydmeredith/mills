@@ -9,9 +9,9 @@ function [] = get_similarity_wrapper(subj)
 
 setup; % add useful paths; configure default figure text
 
-off_range = -50:50; % range of offsets to search for block matches
+off_range = -100:100; % range of offsets to search for block matches
 blksz     = 100;    % size of blocks to divide images into
-z_range   = -3:3;   % range around best matches to use
+z_range   = -30:30;   % range around best matches to use
 
 % load the z stack into a 3d array
 stack_names = dir(fullfile(data_dir,subj,'2015-*-*__post_stack_00*_AVERAGE.tif'));
@@ -57,23 +57,17 @@ for di = 1:ndays
     for bi = 1:nblks
         fprintf('\n\tblock %i...', bi);
         % create block indices around this block center
-        blk_yix = [(blk_cntrs.y(bi) - blksz/2):(blk_cntrs.y(bi) + blksz/2)];
-        blk_xix = [(blk_cntrs.x(bi) - blksz/2):(blk_cntrs.x(bi) + blksz/2)];
-       
-        % crop the right and bottom blocks if necessary
-        % to avoiding trying to access out of bounds indices
-        blk_yix = blk_yix(blk_yix <= imgy);
-        blk_xix = blk_xix(blk_xix <= imgx);
+        [blk_yix blk_xix] = blk_ctr2ix(blk_cntrs, bi, blksz, imgx, imgy);
 
         % select block
         block   = img(blk_yix,blk_xix);
         
         % determine the neighborhood of z-values to look at
         z_to_check = blks_best_z(bi,di) + z_range;
+        z_to_check = z_to_check(z_to_check > 0 & z_to_check <= size(stack,3));
 
         % get the cross correlation of this block against the stack image
-        [c xoff yoff]   = get_xyz_similarity(stack(:,:,z_to_check), block, blk_cntrs.x(bi), blk_cntrs.y(bi), off_range);
-        keyboard; % check that the c matrix actually fits in C
+        [c yoff xoff]   = get_xyz_similarity(stack(:,:,z_to_check), block, blk_cntrs.x(bi), blk_cntrs.y(bi), off_range);
         C(bi,:,:,z_to_check) = c;
 
         % update best z with the z that has the max correlation
@@ -89,7 +83,7 @@ for di = 1:ndays
     end
     % now let's save this correlation matrix
     savepath = fullfile(data_dir,subj,[img_name(1:end-4) '_correlations.mat']); 
-    save(savepath, 'C','off_range', 'blk_cntrs', 'blksz')
+    save(savepath, 'C','off_range','xoff','yoff', 'blk_cntrs', 'blksz')
 end
 
 

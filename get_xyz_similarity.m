@@ -1,4 +1,4 @@
-function [C xoff yoff] = get_xyz_similarity(stack,blk_img, blk_cntr_x, blk_cntr_y, off_range)
+function [C yoff xoff] = get_xyz_similarity(stack,blk_img, blk_cntr_x, blk_cntr_y, off_range)
 % [C xoff yoff] = get_xyz_similarity(stack,blk_img, blk_cntr_x, blk_cntr_y, off_range)
 %  
 % find the cross correlation within some range of allowable offsets 
@@ -21,7 +21,7 @@ for zx = 1:n_z
         stack_slice = stack(:,:,zx);
 
         % get the cross correlation of this block against the stack image
-        [c xoff yoff]   = block_xy_similarity(stack_slice, blk_img, blk_cntr_x, blk_cntr_y);
+        [c yoff xoff]   = block_xy_similarity(stack_slice, blk_img, blk_cntr_x, blk_cntr_y);
 
         % store xcorr values for allowable offsets
         xix = find(ismember(xoff,off_range));
