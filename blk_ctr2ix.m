@@ -6,8 +6,8 @@ function [blk_yix blk_xix] = blk_ctr2ix(blk_cntrs, bi, blksz, imgx, imgy);
 
     % crop the right and bottom blocks if necessary
     % to avoiding trying to access out of bounds indices
-    blk_yix = blk_yix(blk_yix <= imgy);
-    blk_xix = blk_xix(blk_xix <= imgx);
+    blk_yix = blk_yix(blk_yix <= imgy & blk_yix > 0);
+    blk_xix = blk_xix(blk_xix <= imgx & blk_xix > 0);
     
     
 end
