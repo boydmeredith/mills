@@ -22,8 +22,7 @@ function [C yoff xoff] = block_xy_similarity(ref, blk_img, cntr_x, cntr_y)
 % get bottom right corner of block
 blk_br_x = cntr_x + floor(blkx/2);
 blk_br_y = cntr_y + floor(blky/2);
-
-C  = get_xy_similarity(ref, blk_img);
+C = normxcorr2(blk_img, ref);
 
 % figure out what offsets these correspond to
 % the indices of C correspond to positions of the bottom right corner

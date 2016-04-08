@@ -19,7 +19,7 @@ C = nan(length(off_range), length(off_range), n_z);
 for zx = 1:n_z
     
         stack_slice = stack(:,:,zx);
-
+        
         % get the cross correlation of this block against the stack image
         [c yoff xoff]   = block_xy_similarity(stack_slice, blk_img, blk_cntr_x, blk_cntr_y);
 
