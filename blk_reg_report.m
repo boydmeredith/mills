@@ -35,7 +35,7 @@ for zi = 1:length(z_range)
     z = z_range(zi) + best_z;
     
     
-    if z < 0 || z > size(stack,3)
+    if z <= 0 || z > size(stack,3)
         continue
     end
 
