@@ -102,7 +102,7 @@ for di = days
         all_z = figure(2); clf;
         plot(1:size(best_corr_z,2), best_corr_z);
         
-        saveas(all_z, fullfile(cmat_dir, sprintf('%s_%s_frame%i_block%i_summary.png',subj,img_date,ti,bi)));
+        saveas(all_z, fullfile(cmat_dir, sprintf('%s_%s_frame%i_summary.png',subj,img_date,ti)));
         % now let's save this correlation matrix
         cmat_name = [subj '_' img_date '_frame' num2str(ti) '.mat'];
         savepath = fullfile(cmat_dir,cmat_name); 
