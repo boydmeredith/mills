@@ -13,7 +13,7 @@ else
     cmat_names = {};
     for k = 1:length(cell(length(cmat_day_dirs)))
         thisdir = cmat_day_dirs(k).name;
-        f = dir(fullfile(cmat_dir,thisdir,'*frame1.mat')); 
+        f = dir(fullfile(cmat_dir,thisdir,'*frame001.mat')); 
         cmat_names = [cmat_names strcat([thisdir filesep],{f.name})];
     end
     gifname = 'warping_x_days'
