@@ -9,7 +9,7 @@ function [] = get_similarity_wrapper(subj, days, timepoints)
 setup; % add useful paths; configure default figure text
 
 off_range = -100:100; % range of offsets to search for block matches
-blksz     = 75 ;    % size of blocks to divide images into
+blksz     = 50 ;    % size of blocks to divide images into
 z_range   = -30:30;   % range around best matches to use
 auto_crop = true;
 % force block size to be even
@@ -34,6 +34,7 @@ ndays       = length(movie_names);
 if nargin < 2
     days = 1:ndays;
 end
+days = days(days<=ndays);
 if nargin < 3 
     timepoints = 1;
 end
@@ -41,6 +42,7 @@ end
 % pre-allocate best z choice array
 blks_best_z = nan(nblks,ndays);
 for di = days
+    
     % pre-allocate correlations array 
     C = nan(nblks, length(off_range), length(off_range), length(stack_info));
     
@@ -56,21 +58,25 @@ for di = days
     fprintf('\n\nworking on %s...', img_name);
 
     for ti = timepoints
-        fprintf('\n\tframe %i',ti);
 
-        img = load_and_norm_img(img_path, ti);
+        fprintf('\n\tframe %i',ti);
+        try
+            img = load_and_norm_img(img_path, ti);
+        catch
+            break
+        end
         [imgy imgx] = size(img);
 
-        % if it's the first day, start around the middle of the stack
-        if di == 1
-            %best_z = match_to_stack(stack, img);
-            best_z = floor(size(stack,3) / 2);
-            blks_best_z(:,1) = best_z;
-        end
+        
+        
+        % initialize best z with middle of stack
+        mid_z = floor(size(stack,3) / 2);
+        blks_best_z(:,:) = mid_z;
+        
 
         % get cross correlation for each block
         for bi = 1:nblks
-            fprintf('\n\tblock %i...', bi);
+
             % create block indices around this block center
             [blk_yix blk_xix] = blk_ctr2ix(blk_cntrs, bi, blksz, imgx, imgy);
 
@@ -95,18 +101,18 @@ for di = days
             end
             fprintf('s %i', blks_best_z(bi, di));
             rpt = blk_reg_report(img, stack, stack_date, img_date, blk_yix, blk_xix, bi , squeeze(C(bi,:,:,:)), off_range);
-            saveas(rpt, fullfile(cmat_dir, sprintf('%s_%s_frame%i_block%i_neighbors.png',subj,img_date,ti,bi)));
+            saveas(rpt, fullfile(cmat_dir, sprintf('%s_%s_frame%03i_block%03i_neighbors.png',subj,img_date,ti,bi)));
             
         end
         best_corr_z = squeeze(max(max(C,[],2),[],3));
         all_z = figure(2); clf;
         plot(1:size(best_corr_z,2), best_corr_z);
         
-        saveas(all_z, fullfile(cmat_dir, sprintf('%s_%s_frame%i_summary.png',subj,img_date,ti)));
+        saveas(all_z, fullfile(cmat_dir, sprintf('%s_%s_frame%03i_summary.png',subj,img_date,ti)));
         % now let's save this correlation matrix
-        cmat_name = [subj '_' img_date '_frame' num2str(ti) '.mat'];
+        cmat_name = sprintf('%s_%s_frame%03i.mat',subj, img_date, ti);
         savepath = fullfile(cmat_dir,cmat_name); 
-        save(savepath, 'C','best_corr_z','off_range','xoff','yoff', 'blk_cntrs', 'blksz')
+        save(savepath, 'C','best_corr_z','off_range','blk_cntrs', 'blksz')
     end
 end
 
