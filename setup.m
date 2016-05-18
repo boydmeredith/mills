@@ -6,7 +6,7 @@ else
     addpath('utility');
 end
 data_dir = '~/Documents/Princeton/Rotations/tank/';
-
+data_dir = '/Volumes/tank/jtb3/Data/';
 easy_subject = 'J115';
 hard_subject = 'J114';
 
