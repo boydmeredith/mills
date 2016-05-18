@@ -25,14 +25,23 @@ noiseSD = 30;
 noiseMu = 4;
 movFrame = ref + cast(noiseSD .* randn(size(ref)) + noiseMu,'uint8');
 
-[cm blkRot] = computeBlockImageCorrs(movFrame,blkInRefLoc,angle,refRot,'double');
-
-[yPeak xPeak] = ind2sub(size(cm),find(cm==max(cm(:))));
+[ blkRot] = rotateAndReselectBlock(movFrame,blkInRefLoc,angle);
+corrMat   = computeBlockImageCorrs(blkRot, refRot,'double');
+[yPeak xPeak] = ind2sub(size(corrMat),find(corrMat==max(corrMat(:))));
 yPeakInRef = yPeak - blksz + 1;
 xPeakInRef = xPeak - blksz + 1;
 
 foundBlk   = refRot(yPeakInRef:yPeakInRef+blksz-1, xPeakInRef:xPeakInRef+blksz-1);
 
 figure(1); clf
+subplot(2,2,1)
+imagesc(corrMat); axis image
+title('correlation matrix');
+subplot(2,2,2)
 imshowpair(blkRot, foundBlk, 'falsecolor');
+title('block differences');
+axis image
+subplot(2,2,3:4)
+imshowpair(blkRot, foundBlk, 'montage');
+title('blocks side by side')
 set(gcf,'position',[100 100 1000 1000]); axis image
