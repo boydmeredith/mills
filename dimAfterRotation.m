@@ -1,4 +1,4 @@
-edit function [newH, newW] = dimAfterRotation(origH, origW, angle)
+function [newH, newW] = dimAfterRotation(origH, origW, angle)
 % [height width] = dimAfterRotation(origH, origW, angle)
 % return the new height and width of a rectangle after rotating it by the
 % specified angle
