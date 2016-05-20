@@ -7,8 +7,8 @@ ref = cropStack(ref);
 
 blksz = 100;
 
-blkStartY = 375;
-blkStartX = 200;
+blkStartY = 300;
+blkStartX = 100;
 blkEndY = blksz+blkStartY-1;
 blkEndX = blksz+blkStartX-1;
 
@@ -20,13 +20,15 @@ blkInRefLoc = false(size(ref));
 blkInRefLoc(blkStartY:blkEndY,blkStartX:blkEndX) = true;
 %%
 angle = 10;
-refRot = imrotate(ref,angle,'bilinear');
-noiseSD = 30;
-noiseMu = 4;
+refRot = rotateAndSelectBlock(ref,true(size(ref)),angle);
+noiseSD = 100;
+noiseMu = 1;
 movFrame = ref + cast(noiseSD .* randn(size(ref)) + noiseMu,'uint8');
 
-[ blkRot] = rotateAndReselectBlock(movFrame,blkInRefLoc,angle);
+[ blkRot] = rotateAndSelectBlock(movFrame,blkInRefLoc,angle);
 corrMat   = computeBlockImageCorrs(blkRot, refRot,'double');
+
+
 [yPeak xPeak] = ind2sub(size(corrMat),find(corrMat==max(corrMat(:))));
 yPeakInRef = yPeak - blksz + 1;
 xPeakInRef = xPeak - blksz + 1;
