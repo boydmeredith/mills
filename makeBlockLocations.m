@@ -20,8 +20,16 @@ imgHOrig = imgH;
 imgWOrig = imgW;
 borderW = 0;
 borderH = 0;
+rotDiffW = 0;
+rotDiffH = 0;
 
 while ~canRotate
+
+    borderW = borderW + rotDiffW + mod(rotDiffW,2);
+    borderH = borderH + rotDiffH + mod(rotDiffH,2);
+    
+    imgH = imgHOrig - borderH;
+    imgW = imgWOrig - borderW;
     
     [startsH, endsH, lengthH] = divideIntoBlocks(imgH, nBars, overlap);
     [startsW, endsW, lengthW] = divideIntoBlocks(imgW, nBars, overlap);
@@ -37,25 +45,27 @@ while ~canRotate
 
         end
     end
-
-    blockW = endsW(1);
-    blockH = endsH(1);
+    
+    % get dimensions of biggest block
+    maxBlockW = max(sum(max(blockLocations,[],1)));
+    maxBlockH = max(sum(max(blockLocations,[],2)));
+    
     % test ability to rotate within original image
     % if we rotate a block, how much wider and taller will it be?
-    [padH padW] = dimAfterRotation(blockH, blockW, maxRot);
-    rotDiffW = ceil(padW - blockW);
-    rotDiffH = ceil(padH - blockH);
-    
-    canRotate = ( borderW >= rotDiffW/2 & borderH >= rotDiffH/2 );
-   
-    borderW = borderW + rotDiffW;
-    borderH = borderH + rotDiffH;
-    imgH = imgHOrig - borderH;
-    imgW = imgWOrig - borderW;
+    [padH padW] = dimAfterRotation(maxBlockH, maxBlockW, maxRot);
+
+    rotDiffW = ceil(padW) - maxBlockW;
+    rotDiffH = ceil(padH) - maxBlockH;
+
+    canRotate = ( borderW > rotDiffW & borderH > rotDiffH );
+        
     
     
 end
 
-% pad blockLocations with borderW and borderH
-blockLocations = padarray(blockLocations,[ceil(borderH/2) ceil(borderW/2)],0);
+assert(imgH + borderH == imgHOrig);
+assert(imgW + borderW == imgWOrig);
 
+% pad blockLocations with borderW and borderH
+blockLocations = padarray(blockLocations,[(borderH/2) (borderW/2)],0);
+assert(isequal(size(blockLocations), [imgHOrig imgWOrig nBars^2]));
