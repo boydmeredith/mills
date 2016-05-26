@@ -2,13 +2,30 @@
 jlgDataDir = '/Volumes/tank/jlgauthi/Data';
 subj = 'J115';
 subjDir = fullfile(jlgDataDir,subj);
-stackPath = fullfile(subjDir,'2015-09-25__post_stack_002_AVERAGE.gif');
-moviePath = fullfile(subjDir,'2015-12-06__L01__AVERAGE.gif');
+refName = 'reference_stack_2015-09-25.tif';
+stackPath = fullfile(subjDir,refName);
+movieName = '2015-12-06__L01__AVERAGE.tif';
+moviePath = fullfile(subjDir,movieName);
 frameOneCorrsPath = fullfile(subjDir,'2015-12-06__L01__AVERAGE_corrs/J115_2015-12-06_frame001.mat');
-%%
-stack = imread(stackPath,'Frames','all');
+
+
+stackInf = imfinfo(stackPath);
+stack(stackInf(1).Height,stackInf(1).Width,length(stackInf)) = 0;
+for ss = 1:length(imfinfo(stackPath))
+    stack(:,:,ss) = imread(stackPath,ss);
+end
 stack = cropStack(stack);
 [sY, sX, sZ] = size(stack);
+
+movieInf    = imfinfo(moviePath);
+movieHeight = movieInf(1).Height;
+movieWidth  = movieInf(1).Width;
+movieLength = length(movieInf); 
+movie(movieHeight,movieWidth,movieLength) = 0;
+for mm = 1:length(imfinfo(moviePath))
+    movie(:,:,mm) = imread(moviePath,mm);
+end
+%%
 movieFrameOne = imread(moviePath,1);
 [mY, mX, mZ] = size(movieFrameOne);
 %%
