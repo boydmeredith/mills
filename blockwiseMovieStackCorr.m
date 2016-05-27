@@ -80,14 +80,6 @@ montageGif  = []; montageMap  = []; montageFigNo = 5;
 if ~isempty(pRes.priorMedFiltFigName)
     priorMedFiltFig = figure('visible', pRes.showFigs);
 end
-if ~isempty(pRes.zFitFigName)
-    zFitFig = figure('Visible',pRes.showFigs);
-    [~, zFitPlotMat] = makeSubplots(get(zFitFig,'Number'),pRes.nBlockSpan,pRes.nBlockSpan,.1,.1,[.05 .05 .95 .95]);
-end
-if ~isempty(pRes.rFitFigName)
-    rFitFig = figure('Visible',pRes.showFigs);
-    [~, rFitPlotMat] = makeSubplots(get(rFitFig,'Number'),pRes.nBlockSpan,pRes.nBlockSpan,.1,.1,[.05 .05 .95 .95]);
-end
 if ~isempty(pRes.ballStickGifName)
     ballStickFig = figure('Visible',pRes.showFigs);
 end
@@ -95,20 +87,17 @@ end
 analysisDate = datestr(today);
 
 % assemble some variables based on optional input parameters
-coarseRotAngles  = -(pRes.coarseRotWindowRange/2):pRes.coarseRotStepSz:(pRes.coarseRotWindowRange/2);
-coarseRotAngles = round(coarseRotAngles, pRes.angleSigFig);
+pRes.coarseRotAngles  = -(pRes.coarseRotWindowRange/2):pRes.coarseRotStepSz:(pRes.coarseRotWindowRange/2);
+pRes.coarseRotAngles = round(pRes.coarseRotAngles, pRes.angleSigFig);
 % remove instances of coarseRotAngle == 0 because this will have higher
 % correlation than the other angles and screw up our fit
-coarseRotAngles(coarseRotAngles == 0) = [];
-
-fineRotAngles    = -(pRes.fineRotWindowRange/2):pRes.fineRotStepSz:(pRes.fineRotWindowRange/2);
-fineRotAngles    = round(fineRotAngles, pRes.angleSigFig);
-rotAngleFromInd    = coarseRotAngles(1):pRes.fineRotStepSz:coarseRotAngles(end);
-rotAngleFromInd    = round(rotAngleFromInd, pRes.angleSigFig);
-assert(length(rotAngleFromInd) <= 255); % make sure that we can represent rotation with uint8
-
-nCoarseRotAngles = length(coarseRotAngles);
-nFineRotAngles   = length(fineRotAngles);
+pRes.coarseRotAngles(pRes.coarseRotAngles == 0) = [];
+fineRotAngles        = -(pRes.fineRotWindowRange/2):pRes.fineRotStepSz:(pRes.fineRotWindowRange/2);
+fineRotAngles        = round(fineRotAngles, pRes.angleSigFig);
+rotAngleFromInd      = pRes.coarseRotAngles(1):pRes.fineRotStepSz:pRes.coarseRotAngles(end);
+rotAngleFromInd      = round(pRes.rotAngleFromInd, pRes.angleSigFig);
+pRes.rotAngleFromInd = rotAngleFromInd;
+assert(length(pRes.rotAngleFromInd) <= 255); % make sure that we can represent rotation with uint8
 
 nBlocks = pRes.nBlockSpan^2;
 
@@ -166,49 +155,31 @@ assert(moviePath(end-3)=='.');
 movieDate = movieName(1:10);
 movieDateDir = fullfile(pRes.dataDir, subj, movieDate);
 corrDir = fullfile(movieDateDir, 'referenceLocalization');
-if ~exist(movieDateDir, 'dir')
-    mkdir(movieDateDir);
-end
-if ~exist(corrDir, 'dir')
-    mkdir(corrDir);
-end
 
+if ~exist(movieDateDir, 'dir'), mkdir(movieDateDir); end
+if ~exist(corrDir, 'dir'), mkdir(corrDir); end
 
-if isempty(pRes.whichBlocks)
-    whichBlocks = 1:nBlocks;
-else
-    whichBlocks = pRes.whichBlocks;
-end
-
-if isempty(pRes.whichFrames)
-    whichFrames = 1:movieLength;
-else
-    whichFrames = pRes.whichFrames;
-end
-
-if isempty(pRes.whichSlices)
-    whichSlices = 1:stackDepth;
-else
-    whichSlices = pRes.whichSlices;
-end
+if isempty(pRes.whichBlocks), pRes.whichBlocks = 1:nBlocks; end
+if isempty(pRes.whichFrames), pRes.whichFrames = 1:movieLength; end
+if isempty(pRes.whichSlices), pRes.whichSlices = 1:stackDepth; end
 
 
 % divide movie into blocks based on the movie dimensions, desired number of
 % blocks, percent overlap between blocks, and maximum amount of rotation
 % (used to create a margin)
 blockLocations = makeBlockLocations(movieHeight, movieWidth, ...
-    pRes.nBlockSpan, pRes.blockOverlap, max(coarseRotAngles));
+    pRes.nBlockSpan, pRes.blockOverlap, max(pRes.coarseRotAngles));
 
 % initialize matrix to store peak of correlations
 xyzrcPeak = zeros(5,nBlocks,movieLength);
-
+xyzrPrior = zeros(5,nBlocks);
 
 
 % ------ iterate through the frames of the movie ------ %
-for ff = 1:length(whichFrames),
+for ff = 1:length(pRes.whichFrames),
     
     % select the relevant movie frame and the relevant block
-    thisFrameNo = whichFrames(ff);
+    thisFrameNo = pRes.whichFrames(ff);
     movieFrame = movie(:,:,thisFrameNo);
     frameString = sprintf('frame: %03i/%03i',thisFrameNo,movieLength);
     disp(frameString);
@@ -225,267 +196,21 @@ for ff = 1:length(whichFrames),
     [~, montagePlotMat]  = makeSubplots(montageFigNo,sqrt(nBlocks),sqrt(nBlocks),.1,.1,[ 0 0 1 1]);
     
     
-    % ----------------- get initial z estimate for each block ------------------- %
-    fprintf('getting initial z estimate for all blocks...\n');
-    
-    if mean(blockZPriorFit) == 0
-        for bb = 1:length(whichBlocks)
-            
-            % select the relevant block location matrix and get its dimensions so
-            % we can determine how many values will be in the correlation matrix
-            thisBlockNo  = whichBlocks(bb);
-            thisBlockLoc = blockLocations(:,:,thisBlockNo);
-            bInf         = getBlockInf(thisBlockLoc);
-            block        = movieFrame(bInf.indY,bInf.indX);
-                        
-            fprintf('computing normxcorr2 for block %03i z estimate...\n',thisBlockNo);
-            tic
-            
-            % matrix to fill to get best z for unrotated blocks
-            frameCorrVolNoRot = zeros(bInf.height+stackHeight-1,bInf.width+stackWidth-1,...
-                stackDepth);
-            
-            for zz = 1:length(whichSlices),
-                thisSliceNo = whichSlices(zz);
-                stackSlice = stack(:,:,thisSliceNo);
-                frameCorrVolNoRot(:,:,thisSliceNo) = computeBlockImageCorrs(block, stackSlice, 'double');
-            end
-            toc
-            
-            % find maximum correlation for each z and fit a polynomial to the
-            % correlation values in a window around the max. Then choose z that
-            % maximizes the fit curve
-            maxCorrByZData = squeeze(max(max(frameCorrVolNoRot(:,:,:),[],1),[],2));
-            [~, bestZData] = max(maxCorrByZData);
-            
-            zIndToFit   = max(min(whichSlices),bestZData-ceil(pRes.inferZWindow/2)) : ...
-                min(max(whichSlices),bestZData+ceil(pRes.inferZWindow/2));
-
-            fitZ = polyfit(double(zIndToFit), double(maxCorrByZData(zIndToFit)'), pRes.zFitPower);
-            
-            maxCorrByZFit = polyval(fitZ,zIndToFit);
-            
-            bestZFit = zIndToFit(maxCorrByZFit == max(maxCorrByZFit));
-            
-            blockZPriorFit(thisBlockNo)  = bestZFit;
-            blockZPriorData(thisBlockNo) = bestZData;
-            
-            % save a report of the peak correlations and fits that will be used to get neighborhoods 
-            if ~isempty(pRes.zFitFigName)
-                [blocki, blockj] = ind2sub([pRes.nBlockSpan, pRes.nBlockSpan], thisBlockNo);
-                ax1 = zFitPlotMat(blocki, blockj);
-                
-                set(ax1,'box','off','ylim',[-.25 1], 'YTick',[-.5 0 .5 1],...
-                    'xlim',[1 stackDepth], 'XTick',[bestZData], 'fontsize',6,...
-                    'xaxislocation','origin'); 
-                hold(ax1, 'on');
-                
-                
-                 plot(ax1,[bestZFit bestZFit],[0 1], '-.', ...
-                    zIndToFit, maxCorrByZFit, '-', 'color', [.9 .5 .7],'linewidth',1);
-                
-                
-                plot(ax1,[bestZData bestZData],[0 1], '--','color', [.3 .5 .7],'linewidth',1);
-                plot(ax1, 1:stackDepth, maxCorrByZData, '.', 'color', [.2 .4 .6], 'markersize',1.75)%;,...,
-                    %'markeredgecolor','k','linewidth',.05,'markersize',3);
-                
-                if blockj == 1 & blocki == ceil(pRes.nBlockSpan/2), ylabel(ax1,'correlation');
-                end
-                if blockj == ceil(pRes.nBlockSpan/2) & blocki == pRes.nBlockSpan, xlabel(ax1,'stack slice #')
-                end
-
-
-            end
-            
-
-            clear frameCorrVolNoRot;
-            
-        end
-        
-        if ~isempty(pRes.zFitFigName), saveas(zFitFig, fullfile(frameCorrDir, pRes.zFitFigName)); end
-        
-        % smooth z estimate with median filter
-        zFit      = reshape(blockZPriorFit,sqrt(nBlocks),sqrt(nBlocks));
-        zData     = reshape(blockZPriorData,sqrt(nBlocks),sqrt(nBlocks));
-        zFitFilt  = medfilt2(zFit,[4 4], 'symmetric');
-        zDataFilt = medfilt2(zData,[4 4], 'symmetric');
-        
-        if ~isempty(pRes.priorMedFiltFigName)
-            set(0, 'currentfigure', priorMedFiltFig);
-            
-            imagesc([zFit zFitFilt],'parent',subplot(2,2,1)); hold on;
-            plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
-            caxis([min(whichSlices) max(whichSlices)]);  colorbar;
-            title('Z Fits')
-            
-            imagesc([zData zDataFilt], 'parent',subplot(2,2,2)); hold on; 
-            plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
-            caxis([min(whichSlices) max(whichSlices)]); colorbar;
-            title('Z Data')
-            
-            colormap(colormapRedBlue);
-            
-            saveas(priorMedFiltFig, fullfile(corrDir, pRes.priorMedFiltFigName));
-
-        end
-        
-        % store the z priors
-        % round so that they correspond to actual z slices 
-        blockZPriorFit = round(reshape(zFitFilt,[],1));
-        blockZPriorData = round(reshape(zData,[],1));
+    if ff == 1
+        xyzrPrior = getPrior(movieFrame, blockLocations, stack, pRes)
+    else
+        % might still want to have a filtering/interpolating step here in case a given frame goes haywire
+        xyzrPrior = xyzrcPeak(1:5,:,thisFrameNo-1);
     end
-    
-
-    
-    
-    
-    % ------------ get initial rotation angle estimate for each block --------------- %
-    fprintf('getting initial r estimate for all blocks...\n');
-    
-    if mean(blockRPriorData) == 0
-        for bb = 1:length(whichBlocks)
-            % select the relevant block location matrix and get its dimensions so
-            % we can determine how many values will be in the correlation matrix
-            thisBlockNo  = whichBlocks(bb);
-            thisBlockLoc = blockLocations(:,:,thisBlockNo);
-            bInf         = getBlockInf(thisBlockLoc);
-            block        = movieFrame(bInf.indY,bInf.indX);
-            
-            fprintf('computing normxcorr2 for block %03i r estimate...\n',thisBlockNo);
-            tic
-            
-            thisBlockBestZ = blockZPriorData(thisBlockNo);
-            bestStackSliceNoRot = stack(:,:,thisBlockBestZ);
-
-            
-            % preallocate matrix for rotation angles
-            frameCorrVolRot = zeros(bInf.height+stackHeight-1,bInf.width+stackWidth-1,...
-                length(coarseRotAngles), 'double');
-            
-            % get correlations for a pre-determined set of angles
-            for rr = 1:length(coarseRotAngles)
-                rotAngle = coarseRotAngles(rr);
-                blockRot = rotateAndSelectBlock(movieFrame, thisBlockLoc, rotAngle);
-                
-                frameCorrVolRot(:,:,rr) = computeBlockImageCorrs(blockRot, ...
-                    bestStackSliceNoRot, 'double');
-            end
-            toc
-            
-            % find peak correlation for rotations using same process as for z
-            [~, frameCorrVolMaxIx] = max(frameCorrVolRot(:));
-            [~,~,bestRIndData] = ind2sub(size(frameCorrVolRot), frameCorrVolMaxIx);
-            
-            bestRData = coarseRotAngles(bestRIndData);
-            maxCorrByRData = squeeze(max(max(frameCorrVolRot,[],1),[],2));
-            
-            fitRot =  polyfit((coarseRotAngles).',maxCorrByRData, pRes.rotFitPower);
-            maxCorrByRFit = polyval(fitRot,rotAngleFromInd);
-            
-            [~, bestRIndFit] = max(maxCorrByRFit);
-            bestRFit = rotAngleFromInd(bestRIndFit);
-            
-            blockRPriorFit(thisBlockNo)  = bestRFit;
-            blockRPriorData(thisBlockNo) = bestRData;
-            
-            % save a report of the peak correlations and fits that will be used to get neighborhoods 
-            if ~isempty(pRes.rFitFigName)
-                [blocki, blockj] = ind2sub([pRes.nBlockSpan, pRes.nBlockSpan], thisBlockNo);
-                ax1 = rFitPlotMat(blocki, blockj);
-                
-                set(ax1,'box','off','ylim',[-.25 1], 'YTick',[-.5 0 .5 1],...
-                    'xlim',[coarseRotAngles(1) coarseRotAngles(end)], 'XTick',[bestRData], 'fontsize',10,...
-                    'xaxislocation','origin'); 
-                hold(ax1, 'on');
-                
-                plot(ax1,[bestRFit bestRFit],[0 1], '-.' ...
-                    ,rotAngleFromInd, maxCorrByRFit, '-', 'color', [.9 .5 .7]);
-                
-                plot(ax1,[bestRData bestRData],[0 1], '--', ...
-                    coarseRotAngles, maxCorrByRData, '.', 'color', [.3 .5 .7]);
-                
-                if blockj == 1 & blocki == ceil(pRes.nBlockSpan/2), ylabel(ax1,'correlation');
-                end
-                if blockj == ceil(pRes.nBlockSpan/2) & blocki == pRes.nBlockSpan, xlabel(ax1,'rotation angle (deg)')
-                end
-                
-
-
-            end
-            
-            clear frameCorrVolRot;
-            
-        end
-        
-        if ~isempty(pRes.rFitFigName), saveas(rFitFig, fullfile(frameCorrDir, pRes.rFitFigName)); end
-
-        
-        % smooth z estimate with median filter
-        rFit      = reshape(blockRPriorFit,sqrt(nBlocks),sqrt(nBlocks));
-        rData     = reshape(blockRPriorData,sqrt(nBlocks),sqrt(nBlocks));
-        rFitFilt  = medfilt2(rFit,[4 4], 'symmetric');
-        rDataFilt = medfilt2(rData,[4 4], 'symmetric');
-        
-        if ~isempty(pRes.priorMedFiltFigName)
-            imagesc([rFit rFitFilt],'parent',subplot(2,2,3)); hold on;
-            plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
-            caxis([-1 1]);%caxis([min(coarseRotAngles) max(coarseRotAngles)]);
-            colorbar;
-            title('R Fits')
-            
-            imagesc([rData rDataFilt], 'parent',subplot(2,2,4)); hold on;
-            plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
-            %caxis([min(coarseRotAngles) max(coarseRotAngles)]);
-            caxis([-1 1]);
-            colorbar;
-            title('R Data')
-            
-            colormap(redbluecmap);
-            saveas(priorMedFiltFig, fullfile(corrDir, pRes.priorMedFiltFigName));
-            
-        end
-        
-        blockRPriorFit = reshape(rFitFilt,[],1);
-        blockRPriorData = reshape(rDataFilt,[],1);
-        
-        
-        toc
-    end
-    
-%             % plot z fit and r fit
-%         if ~isempty(pRes.rFitGifName)
-%             axes(rFitPlotMat(blocki, blockj));
-%             plot(rotAngleFromInd, maxCorrByRotFit, '-', 'color', [.5 .5 .5]);
-%             hold on
-%             plot(coarseRotAngles, maxCorrByRotData, '.', 'color', [.3 .5 .7]);
-%             plot([bestRotData bestRotData], get(gca, 'ylim'), '-', 'color', [.3 .5 .7]);
-%             plot([bestRotFit bestRotFit], get(gca, 'ylim'), '--', 'color', [.5 .5 .5]);
-%         end
-
-    
-    
     
     % ----------------- iterate through the blocks to keep values ------------------- %
-    for bb = 1:length(whichBlocks)
-        
-        
-        
+    for bb = 1:length(pRes.whichBlocks)
         % select the relevant block location matrix and get its dimensions so
         % we can determine how many values will be in the correlation matrix
-        thisBlockNo  = whichBlocks(bb);
+        thisBlockNo  = pRes.whichBlocks(bb);
         thisBlockLoc = blockLocations(:,:,thisBlockNo);
         bInf         = getBlockInf(thisBlockLoc);
         block        = movieFrame(bInf.indY,bInf.indX);
-        
-        % create indices for x y z r to keep
-        nInd = pRes.nZToKeep * nFineRotAngles * pRes.nXYToKeep;
-        indZ = zeros(nInd,1,'uint8');
-        indR = zeros(nInd,1,'uint8');
-        indX = zeros(nInd,1,'uint16');
-        indY = zeros(nInd,1,'uint16');
-        corrValsToSave = zeros(nInd,1,pRes.corrType);
-        
-        
         
         % === Fill in correlations for neighborhood around peak ==== %
         % -----------------------------------------------------------%
@@ -499,7 +224,15 @@ for ff = 1:length(whichFrames),
         
         rotToKeep = fineRotAngles + thisNbrhdCtrR;
         rotToKeep = round(rotToKeep, pRes.angleSigFig);
-        rotToKeep(~ismember(rotToKeep,rotAngleFromInd)) = [];
+        rotToKeep(~ismember(rotToKeep,pRes.rotAngleFromInd)) = [];
+        
+        % create indices for x y z r to keep
+        nInd = pRes.nZToKeep * length(rotToKeep) * pRes.nXYToKeep;
+        indZ = zeros(nInd,1,'uint8');
+        indR = zeros(nInd,1,'uint8');
+        indX = zeros(nInd,1,'uint16');
+        indY = zeros(nInd,1,'uint16');
+        corrValsToSave = zeros(nInd,1,pRes.corrType);
         
         % Loop through the specified range of z values and angles
         nn = 1;
@@ -530,7 +263,7 @@ for ff = 1:length(whichFrames),
                 indX(storeInd) = uint16(xIx(thisCorrXYToKeepIx));
                 indY(storeInd) = uint16(yIx(thisCorrXYToKeepIx));
                 indZ(storeInd) = uint8(thisSliceNo);
-                indR(storeInd) = uint8(find(rotAngleFromInd == rr));
+                indR(storeInd) = uint8(find(pRes.rotAngleFromInd == rr));
                 corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
                 
                 % increment index counter
@@ -806,4 +539,252 @@ elseif ends > maxIx
 end
 end
 
+
+function [xyzrPrior] = getPrior(movieFrame, blockLocations, whichBlocks, stack, pRes.whichSlices, pRes)
+    
+if ~isempty(pRes.zFitFigName)
+    zFitFig = figure('Visible',pRes.showFigs);
+    [~, zFitPlotMat] = makeSubplots(get(zFitFig,'Number'),pRes.nBlockSpan,pRes.nBlockSpan,.1,.1,[.05 .05 .95 .95]);
+    linkaxes(zFitPlotMat(:));
+end
+if ~isempty(pRes.rFitFigName)
+    rFitFig = figure('Visible',pRes.showFigs);
+    [~, rFitPlotMat] = makeSubplots(get(rFitFig,'Number'),pRes.nBlockSpan,pRes.nBlockSpan,.1,.1,[.05 .05 .95 .95]);
+    linkaxes(rFitPlotMat(:));
+end
+
+[stackHeight, stackWidth, stackDepth] = size(stack);
+nBlocks = pRes.nBlockSpan^2;
+
+% ------------ get initial rotation angle estimate for each block --------------- %
+fprintf('getting initial prior on z for all blocks...\n');
+bestZData = zeros(1,nBlocks);
+bestZFit  = zeros(1,nBlocks);
+bestRData = zeros(1,nBlocks);
+bestRFit  = zeros(1,nBlocks);
+bestXData = zeros(1,nBlocks);
+bestYData = zeros(1,nBlocks);
+
+for bb = 1:length(pRes.whichBlocks)
+    
+    % select the relevant block location matrix and get its dimensions so
+    % we can determine how many values will be in the correlation matrix
+    thisBlockNo  = pRes.whichBlocks(bb);
+    thisBlockLoc = blockLocations(:,:,thisBlockNo);
+    bInf         = getBlockInf(thisBlockLoc);
+    block        = movieFrame(bInf.indY,bInf.indX);
+                
+    fprintf('computing normxcorr2 for block %03i z estimate...\n',thisBlockNo);
+    tic
+    
+    % matrix to fill to get best z for unrotated blocks
+    frameCorrVolNoRot = zeros(bInf.height+stackHeight-1,bInf.width+stackWidth-1,...
+        stackDepth);
+    
+    for zz = 1:length(pRes.whichSlices),
+        thisSliceNo = pRes.whichSlices(zz);
+        stackSlice = stack(:,:,thisSliceNo);
+        frameCorrVolNoRot(:,:,thisSliceNo) = computeBlockImageCorrs(block, stackSlice, 'double');
+    end
+    toc
+    
+    % find maximum correlation for each z and fit a polynomial to the
+    % correlation values in a window around the max. Then choose z that
+    % maximizes the fit curve
+    maxCorrByZData = squeeze(max(max(frameCorrVolNoRot(:,:,:),[],1),[],2));
+    [~, bestZData(thisBlockNo)] = max(maxCorrByZData);
+    
+    zIndToFit   = max(min(pRes.whichSlices), bestZData(thisBlockNo)-ceil(pRes.inferZWindow/2)) : ...
+        min(max(pRes.whichSlices), bestZData(thisBlockNo)+ceil(pRes.inferZWindow/2));
+
+    fitZ = polyfit(double(zIndToFit), double(maxCorrByZData(zIndToFit)'), pRes.zFitPower);
+    
+    maxCorrByZFit = polyval(fitZ, zIndToFit);
+    bestZFit = zIndToFit(maxCorrByZFit == max(maxCorrByZFit));
+    
+    % save a report of the peak correlations and fits that will be used to get neighborhoods 
+    if ~isempty(pRes.zFitFigName)
+        [blocki, blockj] = ind2sub([pRes.nBlockSpan, pRes.nBlockSpan], thisBlockNo);
+        
+        ax1 = zFitPlotMat(blocki, blockj); hold(ax1, 'on');
+        set(ax1,'box','off','ylim',[-.25 1], 'YTick',[max(maxCorrByZData)],...
+            'xlim',[1 stackDepth], 'XTick', bestZData(thisBlockNo) , 'fontsize',6,...
+            'xaxislocation','origin');                          
+        
+        % plot fit to data 
+        plot(ax1,[bestZFit bestZFit],[0 1], '-.', ...
+            zIndToFit, maxCorrByZFit, '-', 'color', [.9 .5 .7],'linewidth',1);
+        % plot data points with mark best z
+        plot(ax1,repmat(bestZData(thisBlockNo),1,2)],[0 1], '--','color', [.3 .5 .7],'linewidth',1);
+        plot(ax1, 1:stackDepth, maxCorrByZData, '.', 'color', [.2 .4 .6], 'markersize',1.75)%;,...,
+            %'markeredgecolor','k','linewidth',.05,'markersize',3);
+        
+        if blockj == 1 & blocki == ceil(pRes.nBlockSpan/2), ylabel(ax1,'correlation');
+        end
+        if blockj == ceil(pRes.nBlockSpan/2) & blocki == pRes.nBlockSpan, xlabel(ax1,'stack slice #')
+        end
+    end
+   
+    clear frameCorrVolNoRot;
+end
+
+if ~isempty(pRes.zFitFigName), saveas(zFitFig, fullfile(frameCorrDir, pRes.zFitFigName)); end
+
+% smooth z estimate with median filter
+zFit      = reshape(blockZPriorFit,sqrt(nBlocks),sqrt(nBlocks));
+zData     = reshape(blockZPriorData,sqrt(nBlocks),sqrt(nBlocks));
+
+zFitFilt  = medfilt2(zFit,[4 4], 'symmetric');
+zDataFilt = medfilt2(zData,[4 4], 'symmetric');
+
+% store z prior
+if pRes.zPriorUseFit
+    xyzrPrior(3,:) = round(reshape(zFitFilt,[],1));
+else
+    xyzrPrior(3,:) = reshape(zDataFilt,[],1));
+end
+
+% ------------ get initial rotation angle estimate for each block --------------- %
+fprintf('getting initial prior on r for all blocks...\n');
+highestCorr=-Inf;lowestCorr=Inf;
+for bb = 1:length(pRes.whichBlocks)
+    % select the relevant block location matrix and get its dimensions so
+    % we can determine how many values will be in the correlation matrix
+    thisBlockNo  = pRes.whichBlocks(bb);
+    thisBlockLoc = blockLocations(:,:,thisBlockNo);
+    bInf         = getBlockInf(thisBlockLoc);
+    block        = movieFrame(bInf.indY,bInf.indX);
+    
+    fprintf('computing normxcorr2 for block %03i r estimate...\n',thisBlockNo);
+    tic
+    
+    % use the block z prior that we just computed above
+    thisBlockBestZ = xyzrPrior(3,thisBlockNo);
+    bestStackSliceNoRot = stack(:,:,thisBlockBestZ);
+    
+    % preallocate matrix for rotation angles
+    frameCorrVolRot = zeros(bInf.height+stackHeight-1,bInf.width+stackWidth-1,...
+        length(pRes.coarseRotAngles), 'double');
+    
+    % get correlations for a pre-determined set of angles
+    for rr = 1:length(pRes.coarseRotAngles)
+        rotAngle = pRes.coarseRotAngles(rr);
+        blockRot = rotateAndSelectBlock(movieFrame, thisBlockLoc, rotAngle);
+        frameCorrVolRot(:,:,rr) = computeBlockImageCorrs(blockRot, ...
+            bestStackSliceNoRot, 'double');
+    end
+    toc
+    
+    % find peak correlation for rotations using same process as for z
+    [~, frameCorrVolMaxIx] = max(frameCorrVolRot(:));
+    [bestYData(thisBlockNo), bestXData(thisBlockNo), bestRIndData] =  ind2sub(size(frameCorrVolRot), frameCorrVolMaxIx);
+    
+    bestYData(thisBlockNo) = bestYData(thisBlockNo) - bInf.height + bInf.ctrY;
+    bestXData(thisBlockNo) = bestXData(thisBlockNo) - bInf.width + bInf.ctrX;
+
+    bestRData(thisBlockNo) = pRes.coarseRotAngles(bestRIndData);
+    maxCorrByRData = squeeze(max(max(frameCorrVolRot,[],1),[],2));
+    
+    fitRot =  polyfit((pRes.coarseRotAngles).',maxCorrByRData, pRes.rotFitPower);
+    maxCorrByRFit = polyval(fitRot,pRes.rotAngleFromInd);
+    
+    [~, bestRIndFit] = max(maxCorrByRFit);
+    bestRFit(thisBlockNo) = pRes.rotAngleFromInd(bestRIndFit);
+    
+    if highestCorr < max(maxCorrByRData), highestCorr = max(maxCorrByRData); end
+    if lowestCorr > min(maxCorrByRData), lowestCorr   = min(maxCorrByRData); end
+
+    % save a report of the peak correlations and fits that will be used to get neighborhoods 
+    if ~isempty(pRes.rFitFigName)
+        [blocki, blockj] = ind2sub([pRes.nBlockSpan, pRes.nBlockSpan], thisBlockNo);
+        ax1 = rFitPlotMat(blocki, blockj);
+        hold(ax1, 'on');
+        set(ax1,'box','off','ylim',[lowestCorr highestCorr], 'YTick',[max(maxCorrByRData)],...
+            'xlim',[pRes.coarseRotAngles(1) pRes.coarseRotAngles(end)], 'XTick',[bestRData(thisBlockNo)],...
+            'fontsize', 6, 'xaxislocation','origin'); 
+        
+        % plot fits
+        plot(ax1,repmat(bestRFit(thisBlockNo),1,2),[0 1], '-.' ...
+            ,pRes.rotAngleFromInd, maxCorrByRFit, '-', 'color', [.9 .5 .7], 'linewidth',1);
+        % plot data 
+        plot(ax1,repmat(bestRData(thisBlockNo),1,2),[0 1], '--', 'color', [.3 .5 .7],'linewidth',1)
+        plot(ax1, pRes.coarseRotAngles, maxCorrByRData, '.', 'color', [.2 .4 .6],'markersize',1.75);
+        
+        if blockj == 1 & blocki == ceil(pRes.nBlockSpan/2), ylabel(ax1,'correlation');
+        end
+        if blockj == ceil(pRes.nBlockSpan/2) & blocki == pRes.nBlockSpan, xlabel(ax1,'rotation angle (deg)')
+        end
+    end
+    
+    clear frameCorrVolRot;
+    
+end
+
+if ~isempty(pRes.rFitFigName), saveas(rFitFig, fullfile(frameCorrDir, pRes.rFitFigName)); end
+
+
+% smooth z estimate with median filter
+rFit      = reshape(bestRFit,sqrt(nBlocks),sqrt(nBlocks));
+rData     = reshape(blockRData,sqrt(nBlocks),sqrt(nBlocks));
+rFitFilt  = medfilt2(rFit,[4 4], 'symmetric');
+rDataFilt = medfilt2(rData,[4 4], 'symmetric');
+
+
+% store z prior
+if pRes.rPriorUseFit
+    xyzrPrior(4,:) = reshape(rFitFilt,[],1);
+else
+    xyzrPrior(4,:) = reshape(rDataFilt,[],1));
+end
+
+
+xData = reshape(bestXData,pRes.nBlockSpan,pRes.nBlockSpan);
+yData = reshape(bestYData,pRes.nblockSpan,pRes.nBlockSpan);
+xDataFilt = medfilt2(xData,[4 4],'symmetric');
+yDataFilt = medfilt2(yData,[4 4],'symmetric');
+
+if ~isempty(pRes.priorMedFiltFigName)
+    set(0, 'currentfigure', priorMedFiltFig);
+    
+    imagesc([zFit zFitFilt],'parent',subplot(2,3,1)); hold on;
+    plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
+    caxis([min(pRes.whichSlices) max(pRes.whichSlices)]);  colorbar;
+    title('Z Fits')
+    
+    imagesc([zData zDataFilt], 'parent',subplot(2,3,2)); hold on; 
+    plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
+    caxis([min(pRes.whichSlices) max(pRes.whichSlices)]); colorbar;
+    title('Z Data')
+    
+    imagesc([rFit rFitFilt],'parent',subplot(2,3,3)); hold on;
+    plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
+    caxis([min(rFit(:)) max(rFit(:))]);%caxis([min(pRes.coarseRotAngles) max(pRes.coarseRotAngles)]);
+    colorbar;
+    title('R Fits')
+    
+    imagesc([rData rDataFilt], 'parent',subplot(2,3,4)); hold on;
+    plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
+    %caxis([min(pRes.coarseRotAngles) max(pRes.coarseRotAngles)]);
+    caxis([min(rFit(:)) max(rFit(:))]);
+    colorbar;
+    title('R Data')
+    
+    imagesc([yData yDataFilt],'parent',subplot(2,3,5)); hold on;
+    plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
+    caxis([min(yData(:)) max(yData(:))]);%caxis([min(pRes.coarseRotAngles) max(pRes.coarseRotAngles)]);
+    colorbar;
+    title('Y Data')
+
+    imagesc([xData xDataFilt],'parent',subplot(2,3,6)); hold on;
+    plot(repmat(mean(get(gca,'xlim')),1,2),get(gca,'ylim'),'k')
+    caxis([min(xData(:)) max(xData(:))]);%caxis([min(pRes.coarseRotAngles) max(pRes.coarseRotAngles)]);
+    colorbar;
+    title('X Data')
+    
+    colormap(redbluecmap);
+    saveas(priorMedFiltFig, fullfile(corrDir, pRes.priorMedFiltFigName));
+    
+end
+
+end
 
