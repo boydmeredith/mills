@@ -27,4 +27,4 @@ for mm = 1:length(imfinfo(moviePath))
 end
 %% run blockwise correlations fn
 blockwiseMovieStackCorr(subj,movieName,stackName,'loadedMovie',movie,'loadedStack',stack,...
-    'whichSlices',[],'coarseRotWindowRange',8, 'showFigs','on');
+    'whichSlices',[15:40],'coarseRotWindowRange',8, 'showFigs','on');

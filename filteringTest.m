@@ -1,4 +1,5 @@
-
+load('/Volumes/tank/jlgauthi/Data/J115/2015-12-06/referenceLocalization/archive_16-05-24/summary.mat','xyzrcPeak')
+%%
 xVal = reshape(permute(xyzrcPeak(1,:,1),[2 1]),10,10);
 yVal = reshape(permute(xyzrcPeak(2,:,1),[2 1]),10,10);
 zVal = reshape(permute(xyzrcPeak(3,:,1),[2 1]),10,10);
@@ -36,7 +37,27 @@ plot(rVal(:),rFilt(:),'o');hold on;plot(xlim,xlim,'r-')
 %%
 ptCloud = pointCloud(xyzrcPeak(1:3,:,1)');
 [model,inlierInd,outlierInd] = pcfitplane(ptCloud, 3);
-pcshow(select(ptCloud,inlierInd),'markersize',700); axis square
-hold all; pcshow(select(ptCloud,outlierInd),'markersize',50);
-set(gca,'zdir','reverse','xdir','reverse','ydir','reverse')
-xlabel('x'); ylabel('y'); zlabel('z')
+%%
+figure(1); clf
+pcshow(select(ptCloud,inlierInd),'markersize',700); 
+hold on
+axis square
+pcshow(select(ptCloud,outlierInd),'markersize',50);
+
+
+
+xlabel('x'); ylabel('y'); zlabel('z')   
+
+set(gca,'zdir','reverse','xdir','reverse','ydir','normal')
+axis square
+grid off
+shading flat
+
+%%
+plot(model);
+%%
+%ax + by + cz + d = 0
+%(ax + by + d)/-c = z
+xx = 
+yy = 
+(model.Parameters([1 2 4]) * [xx yy 1]')/-model.Parameters(3)
