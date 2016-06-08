@@ -1,4 +1,6 @@
-%% load
+%% add code to path
+addJeffCode2Path
+%%
 jlgDataDir = '/Volumes/tank/jlgauthi/Data';
 subj = 'J115';
 subjDir = fullfile(jlgDataDir,subj);
@@ -7,8 +9,8 @@ stackPath = fullfile(subjDir,stackName);
 movieName = '2015-12-06__L01__AVERAGE.tif';
 moviePath = fullfile(subjDir,movieName);
 frameOneCorrsPath = fullfile(subjDir,'2015-12-06__L01__AVERAGE_corrs/J115_2015-12-06_frame001.mat');
-
 %%
+%
 stackInf = imfinfo(stackPath);
 stack(stackInf(1).Height,stackInf(1).Width,length(stackInf)) = 0;
 for ss = 1:length(imfinfo(stackPath))
@@ -27,4 +29,7 @@ for mm = 1:length(imfinfo(moviePath))
 end
 %% run blockwise correlations fn
 blockwiseMovieStackCorr(subj,movieName,stackName,'loadedMovie',movie,'loadedStack',stack,...
-    'whichSlices',[15:40],'coarseRotWindowRange',8, 'showFigs','on');
+    'whichSlices',[],'coarseRotWindowRange',10, 'showFigs','on', ...
+    'xMargin',50,'yMargin',50,...
+    'useSavedPrior', true, 'useSavedPriorEitherWay', true,...
+    'whichBlocks',[]);
