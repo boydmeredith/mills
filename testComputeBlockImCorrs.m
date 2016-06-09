@@ -1,27 +1,79 @@
 peppers = rgb2gray(imread('peppers.png'));
 yStart = 1;
 xStart = 1;
-bWidth  = 70;
-bHeight = 70;
+bWidth  = 80;
+bHeight = 100;
 block   = peppers(yStart:yStart+bHeight-1, xStart:xStart+bWidth-1);
-
 corrMat = normxcorr2(block,peppers);
-figure(1); clf
-subplot(1,2,1)
-imagesc(corrMat); axis square
-colormap(redbluecmap)
-colorbar
-subplot(1,2,2)
-colorbar
 
 [yPeak, xPeak] = find(corrMat == max(corrMat(:)));
+
+nbrhdInf.yCtr = yPeak + (bHeight - 1) /2;
+nbrhdInf.xMargin = 10;
+nbrhdInf.yMargin = 10;
+
 yUL = yPeak - size(block,1) + 1;
 xUL = xPeak - size(block,2) + 1;
-match  = peppers(yUL:yUL+size(block,1)-1, xUL:xUL+size(block,2)-1);
-mean(block(:)-match(:))
-subplot(1,3,1); imagesc(block);
-subplot(1,3,2); imagesc(match);
-subplot(1,3,3); imagesc(block - match);
+
+[corrMatHeight, corrMatWidth] = size(corrMat);
+
+xCtrInRef = 1-bWidth:20.5:corrMatWidth+bWidth;
+xShiftCorrMat = zeros(length(xCtrInRef), corrMatWidth);
+
+
+for xx = 1:length(xCtrInRef)
+    nbrhdInf.xCtr = xCtrInRef(xx);
+    thisCorrMat = computeBlockImageCorrs(block, peppers, nbrhdInf, .5, 'double');
+    xShiftCorrMat(xx, :) = thisCorrMat(150,:);
+end
+%
+yCtrInRef = 1-bHeight:20.5:corrMatHeight+bHeight;
+
+yShiftCorrMat = zeros(corrMatHeight, length(yCtrInRef));
+
+nbrhdInf.xCtr = xPeak + (bWidth - 1) /2;
+
+for yy = 1:length(yCtrInRef)
+    nbrhdInf.yCtr = yCtrInRef(yy);
+    thisCorrMat = computeBlockImageCorrs(block, peppers, nbrhdInf, .5, 'double');
+    yShiftCorrMat(:,yy) = thisCorrMat(:,200);
+end
+%
+%%
+figure(5); clf;
+subplot(1,2,1)
+imagesc(xShiftCorrMat); hold on
+plot([xCtrInRef(1), xCtrInRef(end)] + (bWidth-1)/2 - max(bWidth,nbrhdInf.xMargin),get(gca, 'ylim'),'k-',...
+    [xCtrInRef(1), xCtrInRef(end)] + (3*bWidth-1)/2 - max(bWidth,nbrhdInf.xMargin),get(gca, 'ylim'),'k--',...
+    [xCtrInRef(1), xCtrInRef(end)] + (3*bWidth-1)/2 + max(bWidth,nbrhdInf.xMargin),get(gca, 'ylim'),'b--',...
+    [xCtrInRef(1), xCtrInRef(end)] + (bWidth-1)/2 + max(bWidth,nbrhdInf.xMargin),get(gca, 'ylim'),'b-')
+set(gca, 'YTick',[1:5:length(xCtrInRef)],'YTickLabel', xCtrInRef(1:5:end));
+ylabel('x shifts')
+caxis([-.25 .25])
+
+subplot(1,2,2)
+imagesc(yShiftCorrMat); hold on
+plot(get(gca,'xlim'), [yCtrInRef(1), yCtrInRef(end)] + (bHeight-1)/2 - max(bHeight,nbrhdInf.yMargin),'k-',...
+    get(gca,'xlim'), [yCtrInRef(1), yCtrInRef(end)] + (3*bHeight-1)/2 - max(bHeight,nbrhdInf.yMargin),'k--',...
+    get(gca,'xlim'), [yCtrInRef(1), yCtrInRef(end)] + (3*bHeight-1)/2 + max(bHeight,nbrhdInf.yMargin),'b--',...
+    get(gca,'xlim'), [yCtrInRef(1), yCtrInRef(end)] + (bHeight-1)/2 + max(bHeight,nbrhdInf.yMargin),'b-')
+
+set(gca,  'XTick',[1:5:length(yCtrInRef)],'XTickLabel', yCtrInRef(1:5:end))
+xlabel('y shifts') 
+caxis([-.25 .25])
+colormap(redbluecmap)
+
+
+%%
+
+
+
+
+% match  = peppers(yUL:yUL+size(block,1)-1, xUL:xUL+size(block,2)-1);
+% mean(block(:)-match(:))
+% subplot(1,3,1); imagesc(block);
+% subplot(1,3,2); imagesc(match);
+% subplot(1,3,3); imagesc(block - match);
 
 
 %

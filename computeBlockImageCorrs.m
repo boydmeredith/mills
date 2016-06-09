@@ -37,18 +37,18 @@ if isempty(nbrhdInf)
     corrMat = normxcorr2(block, reference);
 else
     % enforce a minimum added xmargin of the block dimension + 1
-    xMargin  = max(nbrhdInf.xMargin, blockWidth);
-    yMargin  = max(nbrhdInf.yMargin, blockHeight);
+    xMargin  = ceil(max(nbrhdInf.xMargin, blockWidth));
+    yMargin  = ceil(max(nbrhdInf.yMargin, blockHeight));
     % enforce a block center within the reference image
     xCtr = min(refWidth, max(1, nbrhdInf.xCtr));
     yCtr = min(refHeight, max(1, nbrhdInf.yCtr));
     % get the offsets of the correlation window that we want to keep
-    xStartCorr =  xCtr + (blockWidth-1)/2;
-    yStartCorr =  yCtr + (blockHeight-1)/2;
+    xStartCorr =  floor(xCtr + blockWidth/2-1/2);
+    yStartCorr =  floor(yCtr + blockHeight/2-1/2);
     k1X = max(0, xStartCorr - 1 - xMargin);
     k1Y = max(0, yStartCorr - 1 - yMargin);
-    k2X = max(0, refWidth - (xStartCorr - 1 - xMargin) - (xMargin*2 + 1));
-    k2Y = max(0, refHeight - (yStartCorr - 1 - yMargin) - (yMargin*2 + 1));
+    k2X = max(0, corrMatWidth - (xStartCorr + xMargin) - 1);
+    k2Y = max(0, corrMatHeight - (yStartCorr + yMargin)- 1); 
     
     
 %     minOverlapWidth  = minOverlap/blockHeight;
