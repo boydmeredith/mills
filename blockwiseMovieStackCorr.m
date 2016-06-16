@@ -236,8 +236,6 @@ for ff = 1:length(pRes.whichFrames),
         xyzrPrior(1,:) = fX(xx(:),yy(:));
         xyzrPrior(2,:) = fY(xx(:),yy(:));
         xyzrPrior(3,:) = round(fZ(xx(:),yy(:)));
-        
-        
         xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
         
     end
@@ -670,8 +668,7 @@ for bb = 1:length(pRes.whichBlocks)
         
         ax1 = zFitPlotMat(blocki, blockj); hold(ax1, 'on');
         set(ax1,'box','off','ylim',[-.25 1], 'YTick',[round(max(maxCorrByZData),2)],...
-            'xlim',[1 stackDim.depth], 'XTick', bestZData(thisBlockNo) , 'fontsize',6,...
-            'xaxislocation','origin');                          
+            'xlim',[1 stackDim.depth], 'XTick', bestZData(thisBlockNo) , 'fontsize',6);                          
         
         % plot fit to data 
         plot(ax1,[bestZFit(thisBlockNo) bestZFit(thisBlockNo)],[0 1], '-.', ...
@@ -765,7 +762,7 @@ for bb = 1:length(pRes.whichBlocks)
         hold(ax1, 'on');
         set(ax1,'box','off','ylim',[lowestCorr highestCorr], 'YTick',[round(max(maxCorrByRData),2)],...%'YTickLabel',[max(maxCorrByRData)], ...
             'xlim',[pRes.coarseRotAngles(1) pRes.coarseRotAngles(end)], 'XTick',[bestRData(thisBlockNo)],...
-            'fontsize', 6, 'xaxislocation','origin'); 
+            'fontsize', 6); 
         
         % plot fits
         plot(ax1,repmat(bestRFit(thisBlockNo),1,2),[0 1], '-.' ...
