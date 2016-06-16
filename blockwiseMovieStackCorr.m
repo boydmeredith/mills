@@ -224,7 +224,7 @@ for ff = 1:length(pRes.whichFrames),
     if ff == 1
         xyzrPrior = getPrior(movieFrame, blockLocations, stack, pRes);
     else
-        
+        [xx, yy] = meshgrid(1:pRes.nBlockSpan,1:pRes.nBlockSpan);
         [fX, ~, outX]  = fit([xx(:), yy(:)], xyzrcPeak(1,:,thisFrameNo-1)', 'poly11','Robust','Bisquare');
         [fY, ~, outY]  = fit([xx(:), yy(:)], xyzrcPeak(2,:,thisFrameNo-1)', 'poly11','Robust','Bisquare');
         outliersX = outX.residuals > pRes.nRSTD*robustSTD(outX.residuals);
@@ -814,6 +814,7 @@ xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
 
 if ~isempty(pRes.priorFigName)
     priorFig = figure('visible', pRes.showFigs);
+    
     [~, pfM]      = makeSubplots(priorFig, 4, 2, .1, .1, [.05 .05 .95 .95]);
     colormap(priorFig, colormapRedBlue);
     
@@ -851,7 +852,7 @@ if ~isempty(pRes.priorFigName)
     title(pfM(1,4),'R'); colorbar(pfM(1,4))
     axis(pfM(1,4),'image');
     
-    set(priorFig, 'position',[1 1 1600 1000]);
+    set(priorFig, 'position',[1 1 1600 1000], 'paperpositionmode','auto');
     saveas(priorFig, fullfile(pRes.corrDir, pRes.priorFigName));
     close(priorFig)
 end
