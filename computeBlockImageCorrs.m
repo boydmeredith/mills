@@ -36,32 +36,50 @@ legalOverlaps = C.*R > minOverlap;
 if isempty(nbrhdInf)
     corrMat = normxcorr2(block, reference);
 else
-    % enforce a minimum added xmargin of the block dimension + 1
-    xMargin  = ceil(max(nbrhdInf.xMargin, blockWidth));
-    yMargin  = ceil(max(nbrhdInf.yMargin, blockHeight));
+    
+    switch 2
+        case 1 % enforce a minimum added xmargin of the block dimension + 1
+            xMargin  = ceil(max(nbrhdInf.xMargin, blockWidth));
+            yMargin  = ceil(max(nbrhdInf.yMargin, blockHeight));
+            
+        case 2 % no enforcement
+            xMargin = nbrhdInf.xMargin;
+            yMargin = nbrhdInf.yMargin;
+    end
+    
     % enforce a block center within the reference image
-    xCtr = min(refWidth, max(1, nbrhdInf.xCtr));
-    yCtr = min(refHeight, max(1, nbrhdInf.yCtr));
+    %xCtr = min(refWidth, max(1, nbrhdInf.xCtr));
+    %yCtr = min(refHeight, max(1, nbrhdInf.yCtr));
+    
+    % translate from reference image space to correlation matrix space
+    xCtrCorr =  floor(nbrhdInf.xCtr + blockWidth/2-1/2);
+    yCtrCorr =  floor(nbrhdInf.yCtr + blockHeight/2-1/2);
+    
+    % put into acceptable zone
+    [yCtrCorr,xCtrCorr] = findClosestAcceptablePoint([yCtrCorr xCtrCorr],legalOverlaps);
+    
+    % enforce a block center within the safe zone
+    %xCtr = min(refWidth, max(1, nbrhdInf.xCtr));
+    %yCtr = min(refHeight, max(1, nbrhdInf.yCtr));
+    
     % get the offsets of the correlation window that we want to keep
-    xStartCorr =  floor(xCtr + blockWidth/2-1/2);
-    yStartCorr =  floor(yCtr + blockHeight/2-1/2);
-    k1X = max(0, xStartCorr - 1 - xMargin);
-    k1Y = max(0, yStartCorr - 1 - yMargin);
-    k2X = max(0, corrMatWidth - (xStartCorr + xMargin) - 1);
-    k2Y = max(0, corrMatHeight - (yStartCorr + yMargin)- 1); 
+    k1X = max(0, xCtrCorr - 1 - xMargin);
+    k1Y = max(0, yCtrCorr - 1 - yMargin);
+    k2X = max(0, corrMatWidth - (xCtrCorr + xMargin) - 1);
+    k2Y = max(0, corrMatHeight - (yCtrCorr + yMargin)- 1); 
+    
+
+    refNbrhd = reference(1+skipNRef(k1Y, blockHeight, refHeight):end-skipNRef(k2Y, blockHeight, refHeight),...
+        1+skipNRef(k1X, blockWidth, refWidth):end-skipNRef(k2X, blockWidth, refWidth));
     
     
-%     minOverlapWidth  = minOverlap/blockHeight;
-%     minOverlapHeight = minOverlap/blockWidth;
-%     nbrhdXCtr   = min(max(minOverlapWidth, nbrhdInf.xCtr), refWidth-minOverlapWidth);
-%     nbrhdYCtr   = min(max(minOverlapHeight, nbrhdInf.yCtr), refHeight-minOverlapHeight);
+    %refNbrhd = reference(1+skipNRef(min(k1Y, refHeight - blockHeight + 1), blockHeight):end-skipNRef(min(k2Y, refHeight - blockHeight + 1), blockHeight),...
+    %    1+skipNRef(min(k1X, refWidth - blockWidth + 1), blockWidth):end-skipNRef(min(k2X, refWidth - blockWidth + 1), blockWidth));
     
-    refNbrhd = reference(1+skipNRef(k1Y, blockHeight):end-skipNRef(k2Y, blockHeight),...
-        1+skipNRef(k1X, blockWidth):end-skipNRef(k2X, blockWidth));
     corrMatNbrhd = normxcorr2(block, refNbrhd);
     
-    corrMat(k1Y+1:end-k2Y, k1X+1:end-k2X) = corrMatNbrhd(1+skipNCorr(k1Y, blockHeight):end-skipNCorr(k2Y, blockHeight),...
-        1+skipNCorr(k1X, blockWidth):end-skipNCorr(k2X, blockWidth));
+    corrMat(k1Y+1:end-k2Y, k1X+1:end-k2X) = corrMatNbrhd(1+skipNCorr(k1Y, blockHeight, refHeight):end-skipNCorr(k2Y, blockHeight, refHeight),...
+        1+skipNCorr(k1X, blockWidth, refWidth):end-skipNCorr(k2X, blockWidth, refWidth));
 end
 
 % zero out elements of the correlation matrix that correspond to overlap
@@ -75,14 +93,18 @@ end
 end
 
 
-function skipN = skipNRef(k1, B)
-    skipN = max(1+k1-B, 0);
+function skipN = skipNRef(k1, B, R)
+    skipN = max(min(R-B,1+k1-B),0);
 end
 
 
-function skipN = skipNCorr(k, B)
+function skipN = skipNCorr(k, B,R )
     if 1+k >= B
-        skipN = B-1;
+        if R >= 1+k
+            skipN = B-1;
+        else
+            skipN = k-R+B;
+        end
     else
         skipN = k;
     end
