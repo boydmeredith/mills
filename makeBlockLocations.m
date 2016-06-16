@@ -1,10 +1,10 @@
-function [blockLocations] = makeBlockLocations(imgH, imgW, nBars, overlap, maxRot)
-% [blockLocations] = makeBlockLocations(imgH, imgW, nBars, percentOverlap, maxRot)
+function [blockLocations] = makeBlockLocations(imgH, imgW, mnBars, overlap, maxRot)
+% [blockLocations] = makeBlockLocations(imgH, imgW, mnBars, percentOverlap, maxRot)
 % Divide an image into partially overlapping square blocks using Jeff's
 % function divideIntoBlocks and return the block locations
 % imgH              height of image to divvy up
 % imgW              weidth of image to divvy up
-% nBars             the number of blocks to span the image vertically and
+% mnBars             the number of blocks to span the image vertically and
 %                       horizontally
 % overlap           amount of overlap to give the blocks 
 %                       if >=1, assume # points
@@ -14,6 +14,11 @@ function [blockLocations] = makeBlockLocations(imgH, imgW, nBars, overlap, maxRo
 %                   more info)
 %
 % blockLocations    a binary matrix for each block showing its location
+
+
+if length(mnBars)==1
+    mnBars(2) = mnBars(1);
+end
 
 canRotate  = false;
 imgHOrig = imgH;
@@ -31,13 +36,13 @@ while ~canRotate
     imgH = imgHOrig - borderH;
     imgW = imgWOrig - borderW;
     
-    [startsH, endsH, lengthH] = divideIntoBlocks(imgH, nBars, overlap);
-    [startsW, endsW, lengthW] = divideIntoBlocks(imgW, nBars, overlap);
+    [startsH, endsH, lengthH] = divideIntoBlocks(imgH, mnBars(1), overlap);
+    [startsW, endsW, lengthW] = divideIntoBlocks(imgW, mnBars(2), overlap);
 
-    blockLocations = false(imgH, imgW, nBars^2);
+    blockLocations = false(imgH, imgW, prod(mnBars));
     bb = 1;
-    for bj = 1:nBars
-        for bi = 1:nBars %
+    for bj = 1:mnBars
+        for bi = 1:mnBars %
             blockLocations([startsH(bi):endsH(bi)],...
                 [startsW(bj):endsW(bj)],bb) = true;
 
@@ -68,4 +73,4 @@ assert(imgW + borderW == imgWOrig);
 
 % pad blockLocations with borderW and borderH
 blockLocations = padarray(blockLocations,[(borderH/2) (borderW/2)],0);
-assert(isequal(size(blockLocations), [imgHOrig imgWOrig nBars^2]));
+assert(isequal(size(blockLocations), [imgHOrig imgWOrig prod(mnBars)]));
