@@ -51,7 +51,7 @@ addOptional(p, 'diffGifName', 'blockDiffs.gif');
 addOptional(p, 'montageGifName', 'blockMontage.gif');
 addOptional(p, 'allValsPeakGifName', 'allValsPeak.gif');
 
-addOptional(p, 'priorMedFiltFigName','priorMedFilt.pdf');
+addOptional(p, 'priorFigName','priorFig.pdf');
 
 addOptional(p, 'zPriorUseFit', false, @islogical)
 addOptional(p, 'rPriorUseFit', true, @islogical)
@@ -65,6 +65,7 @@ addOptional(p, 'nbrhdXMargin', 100, @isnumeric);
 addOptional(p, 'nbrhdYMargin', 100, @isnumeric);
 addOptional(p, 'minCorrOverlap', .5, @isnumeric);
 addOptional(p, 'filtKern', [4 4], @(x) isnumeric(x) & length(x)==2)
+addOptional(p, 'nRSTD', 8)
 
 %addOptional(p,'saveName','',@isstr);
 
@@ -192,8 +193,8 @@ blockLocations = makeBlockLocations(movieHeight, movieWidth, ...
     pRes.nBlockSpan, pRes.blockOverlap, max(pRes.coarseRotAngles));
 maxBWidth = max(max(sum(blockLocations,2),[],1));
 maxBHeight = max(max(sum(blockLocations,1),[],2));
-montageGrid = zeros(( maxBHeight + 1) * pRes.nBlockSpan, ...
-    pRes.nBlockSpan * (1+ maxBWidth));
+montageGrid = zeros(( maxBHeight + 3) * pRes.nBlockSpan, ...
+    pRes.nBlockSpan * (3+ maxBWidth));
 
 % initialize matrix to store peak of correlations
 xyzrcPeak = zeros(5,nBlocks,movieLength);
@@ -223,14 +224,21 @@ for ff = 1:length(pRes.whichFrames),
     if ff == 1
         xyzrPrior = getPrior(movieFrame, blockLocations, stack, pRes);
     else
-        xyzrPrior(1,:) = reshape(round(medfilt2(reshape(xyzrcPeak(1,:,thisFrameNo-1),pRes.nBlockSpan,pRes.nBlockSpan),...
-            pRes.filtKern, 'symmetric')),[],1);
-        xyzrPrior(2,:) = reshape(round(medfilt2(reshape(xyzrcPeak(2,:,thisFrameNo-1),pRes.nBlockSpan,pRes.nBlockSpan),...
-            pRes.filtKern, 'symmetric')),[],1);
-        xyzrPrior(3,:) = reshape(round(medfilt2(reshape(xyzrcPeak(3,:,thisFrameNo-1),pRes.nBlockSpan,pRes.nBlockSpan),...
-            pRes.filtKern, 'symmetric')),[],1);
-        xyzrPrior(4,:) = reshape(round(medfilt2(reshape(xyzrcPeak(4,:,thisFrameNo-1),pRes.nBlockSpan,pRes.nBlockSpan),...
-            pRes.filtKern, 'symmetric')),[],1);
+        
+        [fX, ~, outX]  = fit([xx(:), yy(:)], xyzrcPeak(1,:,thisFrameNo-1)', 'poly11','Robust','Bisquare');
+        [fY, ~, outY]  = fit([xx(:), yy(:)], xyzrcPeak(2,:,thisFrameNo-1)', 'poly11','Robust','Bisquare');
+        outliersX = outX.residuals > pRes.nRSTD*robustSTD(outX.residuals);
+        outliersY = outY.residuals > pRes.nRSTD*robustSTD(outY.residuals);
+        outliers = outliersX | outliersY;
+        [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], xyzrcPeak(3,~outliers,thisFrameNo-1)', 'loess','Robust','off');
+        [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], xyzrcPeak(4,~outliers,thisFrameNo-1)', 'loess','Robust','off');
+
+        xyzrPrior(1,:) = fX(xx(:),yy(:));
+        xyzrPrior(2,:) = fY(xx(:),yy(:));
+        xyzrPrior(3,:) = round(fZ(xx(:),yy(:)));
+        
+        
+        xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
         
     end
     
@@ -344,10 +352,10 @@ for ff = 1:length(pRes.whichFrames),
         bestBlockRot = rotateAndSelectBlock(movieFrame, thisBlockLoc, pRes.rotAngleFromInd(indR(peakInd)));
         
         % plot block-ref montage
-        montageGrid(1+(maxBHeight+1)*(blocki-1):...
-            (maxBHeight+1)*(blocki-1)+size(bestBlockRot,1),...
-            1+(2*maxBWidth+1)*(blockj-1):...
-            (2*maxBWidth+1)*(blockj-1)+2*size(bestBlockRot,2)) = [normalizeToZeroOne(bestBlockRot) normalizeToZeroOne(refBlock)];
+        montageGrid(1+(maxBHeight+3)*(blocki-1):...
+            (maxBHeight+3)*(blocki-1)+size(bestBlockRot,1),...
+            1+(2*maxBWidth+3)*(blockj-1):...
+            (2*maxBWidth+3)*(blockj-1)+2*size(bestBlockRot,2)) = [normalizeToZeroOne(bestBlockRot) normalizeToZeroOne(refBlock)];
         
         % plot block-ref diff
         imagesc(normalizeToZeroOne(bestBlockRot) - imhistmatch(normalizeToZeroOne(refBlock), bestBlockRot), 'parent',diffPlotMat(blocki,blockj));
@@ -637,8 +645,16 @@ for bb = 1:length(pRes.whichBlocks)
     % find maximum correlation for each z and fit a polynomial to the
     % correlation values in a window around the max. Then choose z that
     % maximizes the fit curve
+    
     maxCorrByZData = squeeze(max(max(frameCorrVolNoRot(:,:,:),[],1),[],2));
-    [~, bestZData(thisBlockNo)] = max(maxCorrByZData);
+        % get position of upper left corner of block at best match
+    [~, maxInd]    = max(frameCorrVolNoRot(:));
+    [bestYData, bestXData, bestZData(thisBlockNo)] = ind2sub(size(frameCorrVolNoRot), maxInd);
+    
+    bestYCtrData(thisBlockNo) = bestYData - bInf.height/2 + 1/2;
+    bestXCtrData(thisBlockNo) = bestXData - bInf.width/2 + 1/2;
+    blockHeights(thisBlockNo) = bInf.height;
+    blockWidths(thisBlockNo)  = bInf.width;
     
     zIndToFit   = max(min(pRes.whichSlices), bestZData(thisBlockNo)-ceil(pRes.inferZWindow/2)) : ...
         min(max(pRes.whichSlices), bestZData(thisBlockNo)+ceil(pRes.inferZWindow/2));
@@ -676,19 +692,23 @@ end
 
 if ~isempty(pRes.zFitFigName), saveas(zFitFig, fullfile(pRes.frameCorrDir, pRes.zFitFigName)); end
 
-% smooth z estimate with median filter
-zFit      = reshape(bestZFit,sqrt(nBlocks),sqrt(nBlocks));
-zData     = reshape(bestZData,sqrt(nBlocks),sqrt(nBlocks));
+[xx, yy] = meshgrid(1:pRes.nBlockSpan,1:pRes.nBlockSpan);
 
-zFitFilt  = medfilt2(zFit,pRes.filtKern, 'symmetric');
-zDataFilt = medfilt2(zData,pRes.filtKern, 'symmetric');
+[fX, ~, outX]  = fit([xx(:), yy(:)], bestXCtrData', 'poly11','Robust','Bisquare');
+[fY, ~, outY]  = fit([xx(:), yy(:)], bestYCtrData', 'poly11','Robust','Bisquare');
+outliersX = outX.residuals > pRes.nRSTD*robustSTD(outX.residuals);
+outliersY = outY.residuals > pRes.nRSTD*robustSTD(outY.residuals);
+outliers = outliersX | outliersY;
 
-% store z prior
 if pRes.zPriorUseFit
-    xyzrPrior(3,:) = round(reshape(zFitFilt,[],1));
+    [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZFit(~outliers)', 'loess','Robust','off');
 else
-    xyzrPrior(3,:) = round(reshape(zDataFilt,[],1));
+    [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZData(~outliers)', 'loess','Robust','off');
 end
+xyzrPrior(1,:) = fX(xx(:),yy(:));
+xyzrPrior(2,:) = fY(xx(:),yy(:));
+xyzrPrior(3,:) = round(fZ(xx(:),yy(:)));
+assert(isequal(fZ(xx(:),yy(:)),reshape(fZ(xx,yy),[],1)));
 
 % ------------ get initial rotation angle estimate for each block --------------- %
 fprintf('getting initial prior on r for all blocks...\n');
@@ -724,12 +744,6 @@ for bb = 1:length(pRes.whichBlocks)
     % find peak correlation for rotations using same process as for z
     [~, frameCorrVolMaxIx] = max(frameCorrVolRot(:));
     [bestYData, bestXData, bestRIndData] =  ind2sub(size(frameCorrVolRot), frameCorrVolMaxIx);
-    
-    % get position of upper left corner of block at best match
-    bestYCtrData(thisBlockNo) = bestYData - bInf.height/2 + 1/2;
-    bestXCtrData(thisBlockNo) = bestXData - bInf.width/2 + 1/2;
-    blockHeights(thisBlockNo) = bInf.height;
-    blockWidths(thisBlockNo)  = bInf.width;
 
     % figure out what angle corresponds to the best r index 
     bestRData(thisBlockNo) = pRes.coarseRotAngles(bestRIndData);
@@ -771,91 +785,78 @@ for bb = 1:length(pRes.whichBlocks)
 end
 
 if ~isempty(pRes.rFitFigName), saveas(rFitFig, fullfile(pRes.frameCorrDir, pRes.rFitFigName)); end
+[fX, ~, outX]  = fit([xx(:), yy(:)], bestXCtrData', 'poly11','Robust','Bisquare');
+[fY, ~, outY]  = fit([xx(:), yy(:)], bestYCtrData', 'poly11','Robust','Bisquare');
+outliersX = outX.residuals > pRes.nRSTD*robustSTD(outX.residuals);
+outliersY = outY.residuals > pRes.nRSTD*robustSTD(outY.residuals);
+outliers = outliersX | outliersY;
 
-
-% smooth z estimate with median filter
-rFit      = reshape(bestRFit,sqrt(nBlocks),sqrt(nBlocks));
-rData     = reshape(bestRData,sqrt(nBlocks),sqrt(nBlocks));
-rFitFilt  = medfilt2(rFit,pRes.filtKern, 'symmetric');
-rDataFilt = medfilt2(rData,pRes.filtKern, 'symmetric');
-
-
-% store z prior
-if pRes.rPriorUseFit
-    xyzrPrior(4,:) = reshape(round(rFitFilt,pRes.angleSigFig),[],1);
+if pRes.zPriorUseFit
+    [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZFit(~outliers)', 'loess','Robust','off');
 else
-    xyzrPrior(4,:) = reshape(round(rDataFilt,pRes.angleSigFig),[],1);
+    [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZData(~outliers)', 'loess','Robust','off');
 end
+xyzrPrior(1,:) = fX(xx(:),yy(:));
+xyzrPrior(2,:) = fY(xx(:),yy(:));
+xyzrPrior(3,:) = round(fZ(xx(:),yy(:)));
+assert(isequal(fZ(xx(:),yy(:)),reshape(fZ(xx,yy),[],1)));
 
-% reshape, median filter, and store x,y priors
-% note: we round before storing
-xData = reshape(bestXCtrData,pRes.nBlockSpan,pRes.nBlockSpan);
-yData = reshape(bestYCtrData,pRes.nBlockSpan,pRes.nBlockSpan);
-xDataFilt = medfilt2(xData,pRes.filtKern,'symmetric');
-yDataFilt = medfilt2(yData,pRes.filtKern,'symmetric');
-% for the prior store the block center instead of the upper left
-xyzrPrior(1,:) = reshape(round(xDataFilt), [], 1) ;
-xyzrPrior(2,:) = reshape(round(yDataFilt), [], 1) ;
+if pRes.zPriorUseFit
+    [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRFit(~outliers)', 'loess','Robust','off');
+else
+    [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRData(~outliers)', 'loess','Robust','off');
+end
+xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
+if pRes.zPriorUseFit
+    [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRFit(~outliers)', 'loess','Robust','off');
+else
+    [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRData(~outliers)', 'loess','Robust','off');
+end
+xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
 
-if ~isempty(pRes.priorMedFiltFigName)
-    priorMedFiltFig = figure('visible', pRes.showFigs);
-    [pmffM]      = makeSubplots(get(priorMedFiltFig, 'number'), 3, 2, .1, .1, [.05 .05 .95 .95]);
-    
-    imagesc([zFit zFitFilt],'parent',pmffM(1)); 
-    hold(pmffM(1), 'on'); 
-    plot(pmffM(1), repmat(mean(get(pmffM(1),'xlim')),1,2),get(pmffM(1),'ylim'),'k')
-    colorbar(pmffM(1));
-    axis(pmffM(1),'image');
-    title(pmffM(1),'Z Fits');
-    set(pmffM(1), 'clim', [min(pRes.whichSlices) max(pRes.whichSlices)]);    
-    
-    imagesc([zData zDataFilt], 'parent',pmffM(2)); 
-    hold(pmffM(2), 'on'); 
-    plot(pmffM(2),repmat(mean(get(pmffM(3),'xlim')),1,2),get(pmffM(2),'ylim'),'k')
-    colorbar(pmffM(2));
-    axis(pmffM(2),'image');
-    title(pmffM(2), 'Z Data');
-    set(pmffM(2), 'clim', [min(pRes.whichSlices) max(pRes.whichSlices)]);     
-    
-    imagesc([yData yDataFilt] + ...
-        repmat(reshape((blockHeights -1)'./2,pRes.nBlockSpan,pRes.nBlockSpan),1, 2),...
-        'parent',pmffM(3)); 
-    hold(pmffM(3), 'on'); 
-    plot(pmffM(3), repmat(mean(get(pmffM(3),'xlim')),1,2), get(pmffM(3),'ylim'),'k')
-    colorbar(pmffM(3));
-    axis(pmffM(3),'image');
-    title(pmffM(3), 'Y Data');
-    set(pmffM(3), 'clim', [min(yData(:)) max(yData(:))]) ;   
-    
-    imagesc([rFit rFitFilt],'parent',pmffM(4)); 
-    hold(pmffM(4), 'on'); 
-    plot(pmffM(4), repmat(mean(get(pmffM(4),'xlim')),1,2),get(pmffM(4),'ylim'),'k')
-    colorbar(pmffM(4));
-    axis(pmffM(4),'image');
-    title(pmffM(4), 'R Fits');
-    set(pmffM(4), 'clim', [min(rFit(:)) max(rFit(:))]) ;
-    
-    imagesc([rData rDataFilt], 'parent',pmffM(5)); 
-    hold(pmffM(5), 'on'); 
-    plot(pmffM(5), repmat(mean(get(pmffM(5),'xlim')),1,2),get(pmffM(5),'ylim'),'k')
-    colorbar(pmffM(5));
-    axis(pmffM(5),'image');
-    title(pmffM(5), 'R Data');
-    set(pmffM(5),'clim', [min(rFit(:)) max(rFit(:))]) ;
 
-    imagesc([xData xDataFilt] + ...
-        repmat(reshape((blockWidths -1)'./2,pRes.nBlockSpan,pRes.nBlockSpan),1, 2),...
-        'parent',pmffM(6)); 
-    hold(pmffM(6),'on'); 
-    plot(pmffM(6), repmat(mean(get(pmffM(6),'xlim')),1,2),get(pmffM(6),'ylim'),'k')
-    colorbar(pmffM(6));
-    axis(pmffM(6),'image');
-    title(pmffM(6), 'X Data');
-    set(pmffM(6), 'clim', [min(xData(:)) max(xData(:))]) ;
+if ~isempty(pRes.priorFigName)
+    priorFig = figure('visible', pRes.showFigs);
+    [~, pfM]      = makeSubplots(priorFig, 4, 2, .1, .1, [.05 .05 .95 .95]);
+    colormap(priorFig, colormapRedBlue);
     
-    colormap(priorMedFiltFig, colormapRedBlue);
-    saveas(priorMedFiltFig, fullfile(pRes.corrDir, pRes.priorMedFiltFigName));
+    imagesc([reshape(bestXCtrData,pRes.nBlockSpan,pRes.nBlockSpan)...
+        reshape(xyzrPrior(1,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,1));
+    title(pfM(1,1),'X');     colorbar(pfM(1,1))
+    axis(pfM(1,1),'image');
+
+    imagesc(reshape(outliersX,pRes.nBlockSpan,pRes.nBlockSpan),'parent',pfM(2,1));
     
+    hist(pfM(2,2), outX.residuals,1000);
+    hold(pfM(2,2), 'on')
+    plot(pfM(2,2), pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(2,2),'ylim'),'r',...
+    -pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(2,2),'ylim'),'r')
+    
+    imagesc([reshape(bestYCtrData,pRes.nBlockSpan,pRes.nBlockSpan)...
+        reshape(xyzrPrior(2,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,2));
+    title(pfM(1,2),'Y'); colorbar(pfM(1,2))
+    axis(pfM(1,2),'image');
+    
+    imagesc(reshape(outliersY,pRes.nBlockSpan,pRes.nBlockSpan),'parent',pfM(2,3));
+    
+    hist(pfM(2,4), outY.residuals,1000);
+    hold(pfM(2,4), 'on')
+    plot(pfM(2,4), pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(2,4),'ylim'),'r',...
+    -pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(2,4),'ylim'),'r')
+
+    imagesc([reshape(bestZData,pRes.nBlockSpan,pRes.nBlockSpan)...
+        reshape(xyzrPrior(3,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,3));
+    title(pfM(1,3),'Z'); colorbar(pfM(1,3))
+    axis(pfM(1,3),'image');
+    
+    imagesc([reshape(bestRData,pRes.nBlockSpan,pRes.nBlockSpan)...
+        reshape(xyzrPrior(4,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,4));
+    title(pfM(1,4),'R'); colorbar(pfM(1,4))
+    axis(pfM(1,4),'image');
+    
+    set(priorFig, 'position',[1 1 1600 1000]);
+    saveas(priorFig, fullfile(pRes.corrDir, pRes.priorFigName));
+    close(priorFig)
 end
 
 save(priorPath, 'xyzrPrior','pRes')
