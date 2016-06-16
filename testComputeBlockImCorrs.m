@@ -1,7 +1,8 @@
 peppers = rgb2gray(imread('peppers.png'));
+peppers = peppers(1:300,1:300);
 yStart = 1;
 xStart = 1;
-bWidth  = 80;
+bWidth  = 100;
 bHeight = 100;
 block   = peppers(yStart:yStart+bHeight-1, xStart:xStart+bWidth-1);
 corrMat = normxcorr2(block,peppers);
@@ -17,7 +18,9 @@ xUL = xPeak - size(block,2) + 1;
 
 [corrMatHeight, corrMatWidth] = size(corrMat);
 
-xCtrInRef = 1-bWidth:20.5:corrMatWidth+bWidth;
+%xCtrInRef = 1-bWidth:20.5:size(peppers,2)+bWidth;
+xCtrInRef = linspace(1-(bWidth-1)/2,  size(peppers,2)+(bWidth-1)/2 ,30);
+disp(xCtrInRef')
 xShiftCorrMat = zeros(length(xCtrInRef), corrMatWidth);
 
 
@@ -25,9 +28,11 @@ for xx = 1:length(xCtrInRef)
     nbrhdInf.xCtr = xCtrInRef(xx);
     thisCorrMat = computeBlockImageCorrs(block, peppers, nbrhdInf, .5, 'double');
     xShiftCorrMat(xx, :) = thisCorrMat(150,:);
+    %xShiftCorrMat(xx, round(xCtrInRef(xx)+bWidth)) = -.5;
 end
 %
-yCtrInRef = 1-bHeight:20.5:corrMatHeight+bHeight;
+%yCtrInRef = 1-bHeight:20.5:size(peppers,1)+bHeight;
+yCtrInRef = linspace(1-(bHeight-1)/2,  size(peppers,1)+(bHeight-1)/2 ,30);
 
 yShiftCorrMat = zeros(corrMatHeight, length(yCtrInRef));
 
@@ -38,18 +43,25 @@ for yy = 1:length(yCtrInRef)
     thisCorrMat = computeBlockImageCorrs(block, peppers, nbrhdInf, .5, 'double');
     yShiftCorrMat(:,yy) = thisCorrMat(:,200);
 end
+
+nxc2=normxcorr2(block,peppers);
 %
-%%
+%
 figure(5); clf;
 subplot(1,2,1)
-imagesc(xShiftCorrMat); hold on
+imagesc([xShiftCorrMat; nxc2(150,:)]); hold on
 plot([xCtrInRef(1), xCtrInRef(end)] + (bWidth-1)/2 - max(bWidth,nbrhdInf.xMargin),get(gca, 'ylim'),'k-',...
     [xCtrInRef(1), xCtrInRef(end)] + (3*bWidth-1)/2 - max(bWidth,nbrhdInf.xMargin),get(gca, 'ylim'),'k--',...
     [xCtrInRef(1), xCtrInRef(end)] + (3*bWidth-1)/2 + max(bWidth,nbrhdInf.xMargin),get(gca, 'ylim'),'b--',...
     [xCtrInRef(1), xCtrInRef(end)] + (bWidth-1)/2 + max(bWidth,nbrhdInf.xMargin),get(gca, 'ylim'),'b-')
-set(gca, 'YTick',[1:5:length(xCtrInRef)],'YTickLabel', xCtrInRef(1:5:end));
+%set(gca, 'YTick',[1:5:length(xCtrInRef)],'YTickLabel', xCtrInRef(1:5:end), ...
+%    'XTick',[1:50:corrMatWidth], 'XTickLabel', [1:50:corrMatWidth] - bWidth + 1);
+hold on
+plot(xCtrInRef+(bWidth-1)/2,1:size(xShiftCorrMat,1),'ko')
 ylabel('x shifts')
+xlabel('x in reference')
 caxis([-.25 .25])
+xlim([1-bWidth/2+1/2, corrMatWidth+bWidth/2-1/2])
 
 subplot(1,2,2)
 imagesc(yShiftCorrMat); hold on
@@ -58,8 +70,13 @@ plot(get(gca,'xlim'), [yCtrInRef(1), yCtrInRef(end)] + (bHeight-1)/2 - max(bHeig
     get(gca,'xlim'), [yCtrInRef(1), yCtrInRef(end)] + (3*bHeight-1)/2 + max(bHeight,nbrhdInf.yMargin),'b--',...
     get(gca,'xlim'), [yCtrInRef(1), yCtrInRef(end)] + (bHeight-1)/2 + max(bHeight,nbrhdInf.yMargin),'b-')
 
-set(gca,  'XTick',[1:5:length(yCtrInRef)],'XTickLabel', yCtrInRef(1:5:end))
+hold on
+plot(1:size(yShiftCorrMat,2),yCtrInRef+(bHeight-1)/2,'ko')
+
+set(gca,  'YTick',[1:50:corrMatHeight], 'YTickLabel', [1:50:corrMatHeight] - bHeight + 1,...
+    'XTick',[1:5:length(yCtrInRef)],'XTickLabel', yCtrInRef(1:5:end))
 xlabel('y shifts') 
+ylabel('y in reference')
 caxis([-.25 .25])
 colormap(redbluecmap)
 
