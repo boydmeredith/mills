@@ -76,10 +76,15 @@ parse(p,varargin{:})
 
 % reassign p.Results to pResults and get rid of p so it is easier to manage
 % subfields
+if ~isempty(p.Unmatched)
+    warning(sprintf('unmatched fields in input: \n\t%s\n', strjoin(fields(p.Unmatched),'\n\t')));
+end
 pRes = p.Results;
 clear p;
 
 %parpool;
+
+
 
 if isempty(pRes.nbrhdXMargin) || isempty(pRes.nbrhdYMargin)
     nbrhdInf = [];
@@ -447,67 +452,6 @@ end
 
 
 
-function [pairsPlot] = createPairsPlot(figNum, peakInd, indX, indY, indZ, indR, corrVals, title, cLimits)
-% X-Y
-pairsPlot = makeSubplots(figNum,3,2,.1,.1,[0 0 1 1]);
-axes(pairsPlot(1));
-
-indZRPeak = find(indZ==indZ(peakInd) & indR ==indR(peakInd));
-imagesc(sparse(double(indX(indZRPeak)), double(indY(indZRPeak)), ...
-    corrVals(indZRPeak)));
-ylabel('Y');
-xlabel('X');
-axis image; colorbar; colormap(colormapRedBlue); caxis(cLimits);
-
-% X-R
-axes(pairsPlot(2));
-indZYPeak = find(indZ==indZ(peakInd) & indY ==indY(peakInd));
-imagesc(sparse(double(indX(indZYPeak)), double(indR(indZYPeak)), ...
-    corrVals(indZYPeak)));
-ylabel('R');
-xlabel('X');
-axis image; colorbar; colormap(colormapRedBlue); caxis(cLimits);
-
-% plot title
-text(mean(get(gca,'xlim')), -15,title,'fontsize',25);
-
-% X-Z
-axes(pairsPlot(3));
-indYRPeak = find(indY==indY(peakInd) & indR ==indR(peakInd));
-imagesc(sparse(double(indX(indYRPeak)), double(indZ(indYRPeak)), ...
-    corrVals(indYRPeak)));
-ylabel('R');
-xlabel('X');
-axis image; colorbar; colormap(colormapRedBlue); caxis(cLimits);
-
-% Y-R
-axes(pairsPlot(4));
-indZXPeak = find(indZ==indZ(peakInd) & indX ==indX(peakInd));
-imagesc(sparse(double(indY(indZXPeak)), double(indR(indZXPeak)), ...
-    corrVals(indZXPeak)));
-ylabel('R');
-xlabel('Y');
-axis image; colorbar; colormap(colormapRedBlue); caxis(cLimits);
-
-% Y-Z
-axes(pairsPlot(5));
-indXRPeak = find(indX==indX(peakInd) & indR ==indR(peakInd));
-imagesc(sparse(double(indY(indXRPeak)), double(indZ(indXRPeak)), ...
-    corrVals(indXRPeak)));
-xlabel('Y');
-ylabel('Z');
-axis image; colorbar; colormap(colormapRedBlue); caxis(cLimits);
-
-% Z-R
-axes(pairsPlot(6));
-indXYPeak = find(indX==indX(peakInd) & indY ==indY(peakInd));
-imagesc(sparse(double(indZ(indXYPeak)), double(indR(indXYPeak)), ...
-    corrVals(indXYPeak)));
-ylabel('R');
-xlabel('Z');
-axis image; colorbar; colormap(colormapRedBlue); caxis(cLimits);
-end
-
 function [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, pResults)
 
 peakInd = find(corrValsToSave == max(corrValsToSave));
@@ -852,7 +796,7 @@ if ~isempty(pRes.priorFigName)
     title(pfM(1,4),'R'); colorbar(pfM(1,4))
     axis(pfM(1,4),'image');
     
-    set(priorFig, 'position',[1 1 1600 1000], 'paperpositionmode','auto');
+    set(priorFig, 'position',[50 50 1200 800], 'paperpositionmode','auto','paperorientation','landscape');
     saveas(priorFig, fullfile(pRes.corrDir, pRes.priorFigName));
     close(priorFig)
 end
