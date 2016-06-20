@@ -76,7 +76,7 @@ parse(p,varargin{:})
 
 % reassign p.Results to pResults and get rid of p so it is easier to manage
 % subfields
-if ~isempty(p.Unmatched)
+if ~isempty(fields(p.Unmatched))
     warning(sprintf('unmatched fields in input: \n\t%s\n', strjoin(fields(p.Unmatched),'\n\t')));
 end
 pRes = p.Results;
@@ -90,6 +90,10 @@ if isempty(pRes.nbrhdXMargin) || isempty(pRes.nbrhdYMargin)
     nbrhdInf = [];
 else
     nbrhdInf = struct('xMargin', pRes.nbrhdXMargin, 'yMargin', pRes.nbrhdYMargin);
+end
+
+if (pRes.nbrhdYMargin+1)*2 * (pRes.nbrhdXMargin+1)*2 < pRes.nXYToKeep,
+    pRes.nXYToKeep = (pRes.nbrhdYMargin+1)*2 * (pRes.nbrhdXMargin+1)*2;
 end
 
 set(0, 'DefaultFigureVisible', pRes.showFigs);
