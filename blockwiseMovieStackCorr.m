@@ -764,7 +764,7 @@ xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
 if ~isempty(pRes.priorFigName)
     priorFig = figure('visible', pRes.showFigs);
     
-    [~, pfM]      = makeSubplots(priorFig, 4, 2, .1, .1, [.05 .05 .95 .95]);
+    [~, pfM]      = makeSubplots(priorFig, 2, 4, .1, .1, [.05 .05 .95 .95]);
     colormap(priorFig, colormapRedBlue);
     
     imagesc([reshape(bestXCtrData,pRes.nBlockSpan,pRes.nBlockSpan)...
@@ -773,35 +773,37 @@ if ~isempty(pRes.priorFigName)
     axis(pfM(1,1),'image');
 
     imagesc(reshape(outliersX,pRes.nBlockSpan,pRes.nBlockSpan),'parent',pfM(2,1));
+    axis(pfM(2,1),'image');
     
-    hist(pfM(2,2), outX.residuals,1000);
-    hold(pfM(2,2), 'on')
-    plot(pfM(2,2), pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(2,2),'ylim'),'r',...
-    -pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(2,2),'ylim'),'r')
+    hist(pfM(3,1), outX.residuals,1000);
+    hold(pfM(3,1), 'on')
+    plot(pfM(3,1), pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(3,1),'ylim'),'r',...
+    -pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(3,1),'ylim'),'r')
     
     imagesc([reshape(bestYCtrData,pRes.nBlockSpan,pRes.nBlockSpan)...
         reshape(xyzrPrior(2,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,2));
     title(pfM(1,2),'Y'); colorbar(pfM(1,2))
     axis(pfM(1,2),'image');
     
-    imagesc(reshape(outliersY,pRes.nBlockSpan,pRes.nBlockSpan),'parent',pfM(2,3));
+    imagesc(reshape(outliersY,pRes.nBlockSpan,pRes.nBlockSpan),'parent',pfM(2,2));
+    axis(pfM(2,2),'image');
     
-    hist(pfM(2,4), outY.residuals,1000);
-    hold(pfM(2,4), 'on')
-    plot(pfM(2,4), pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(2,4),'ylim'),'r',...
-    -pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(2,4),'ylim'),'r')
+    hist(pfM(3,2), outY.residuals,1000);
+    hold(pfM(3,2), 'on')
+    plot(pfM(3,2), pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(3,2),'ylim'),'r',...
+    -pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(3,2),'ylim'),'r')
 
     imagesc([reshape(bestZData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrPrior(3,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,3));
-    title(pfM(1,3),'Z'); colorbar(pfM(1,3))
-    axis(pfM(1,3),'image');
+        reshape(xyzrPrior(3,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(4,1));
+    title(pfM(4,1),'Z'); colorbar(pfM(4,1))
+    axis(pfM(4,1),'image');
     
     imagesc([reshape(bestRData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrPrior(4,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,4));
-    title(pfM(1,4),'R'); colorbar(pfM(1,4))
-    axis(pfM(1,4),'image');
+        reshape(xyzrPrior(4,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(4,2));
+    title(pfM(4,2),'R'); colorbar(pfM(4,2))
+    axis(pfM(4,2),'image');
     
-    set(priorFig, 'position',[50 50 1200 800], 'paperpositionmode','auto','paperorientation','landscape');
+    set(priorFig, 'position',[50 50 1000 600], 'paperpositionmode','auto');
     saveas(priorFig, fullfile(pRes.corrDir, pRes.priorFigName));
     close(priorFig)
 end
