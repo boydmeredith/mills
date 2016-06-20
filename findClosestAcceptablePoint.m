@@ -8,7 +8,10 @@ function [ii,jj] = findClosestAcceptablePoint(initialPoint,acceptableZone)
 [nY,nX] = size(acceptableZone);
 
 % get distance to every point
-dists = sqrt(bsxfun(@plus,((1:nX)-initialPoint(2)).^2,((1:nY)-initialPoint(1))'.^2));
+% this line is slow:
+% dists = sqrt(bsxfun(@plus,((1:nX)-initialPoint(2)).^2,((1:nY)-initialPoint(1))'.^2));
+% this line is half as slow:
+dists = sqrt(repmat(((1:nX)-initialPoint(2)).^2,nY,1)+repmat(((1:nY)-initialPoint(1))'.^2,1,nX));
 
 % set unacceptable points to have distance of inf
 dists(~acceptableZone) = inf;
