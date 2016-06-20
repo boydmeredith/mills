@@ -29,8 +29,8 @@ if minOverlap <= 1
 else
     minOverlap = ceil(minOverlap);
 end
-C = min(repmat(min(1:corrMatWidth,  corrMatWidth:-1:1),corrMatHeight,1),   blockWidth);
-R = min(repmat(min(1:corrMatHeight, corrMatHeight:-1:1)',1,corrMatWidth),blockHeight);
+C = repmat(min(min(1:corrMatWidth,  corrMatWidth:-1:1),blockWidth), corrMatHeight,1);
+R = repmat(min(min(1:corrMatHeight, corrMatHeight:-1:1),blockHeight)', 1,corrMatWidth);
 legalOverlaps = C.*R > minOverlap;
 
 if isempty(nbrhdInf)
