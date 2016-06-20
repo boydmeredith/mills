@@ -306,10 +306,11 @@ for ff = 1:length(pRes.whichFrames),
                 
                 % get the indices of the top nXYToKeep correlations
                 [~, thisCorrSortIx] = sort(thisCorr,'descend');
-                thisCorrXYToKeepIx  = thisCorrSortIx(1:pRes.nXYToKeep);
+                
+                thisCorrXYToKeepIx  = thisCorrSortIx(1:min(length(thisCorr),pRes.nXYToKeep));
                 
                 % determine where to store these newly computed values
-                storeInd = nn:nn+pRes.nXYToKeep-1;
+                storeInd = nn:nn+length(thisCorrXYToKeepIx)-1;
                 
                 % store the x,y,z,r indices and the values themselves for the
                 % top nXYToKeep correlations
@@ -320,7 +321,7 @@ for ff = 1:length(pRes.whichFrames),
                 corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
                 
                 % increment index counter
-                nn = nn + pRes.nXYToKeep;
+                nn = storeInd(end)+1;
             end
         end
         
