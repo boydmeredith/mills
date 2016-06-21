@@ -56,7 +56,9 @@ else
     yCtrCorr =  floor(nbrhdInf.yCtr + blockHeight/2-1/2);
     
     % put into acceptable zone
-    [yCtrCorr,xCtrCorr] = findClosestAcceptablePoint([yCtrCorr xCtrCorr],legalOverlaps);
+    if ~legalOverlaps(round(yCtrCorr),round(xCtrCorr)),
+        [yCtrCorr,xCtrCorr] = findClosestAcceptablePoint([yCtrCorr xCtrCorr],legalOverlaps);
+    end
     
     % enforce a block center within the safe zone
     %xCtr = min(refWidth, max(1, nbrhdInf.xCtr));
