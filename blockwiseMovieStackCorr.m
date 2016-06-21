@@ -260,15 +260,17 @@ for ff = 1:length(pRes.whichFrames),
         % get the subscript position for this block in the grid
         [blocki, blockj] = ind2sub([sqrt(nBlocks), sqrt(nBlocks)], thisBlockNo);
         
+        
+        % === Fill in correlations for neighborhood around peak ==== %
+        % -----------------------------------------------------------%
         if ~isempty(nbrhdInf)
             nbrhdInf.xCtr = xyzrSearchRange(1,thisBlockNo);
             nbrhdInf.yCtr = xyzrSearchRange(2,thisBlockNo);
         end
         
-        % === Fill in correlations for neighborhood around peak ==== %
-        % -----------------------------------------------------------%
         % specify a range of z values and rotation angles to save in the
         % persistent matrix
+        
         thisNbrhdCtrZ = xyzrSearchRange(3,thisBlockNo);
         thisNbrhdCtrR = xyzrSearchRange(4,thisBlockNo);
         
@@ -278,6 +280,7 @@ for ff = 1:length(pRes.whichFrames),
         rotToKeep = fineRotAngles + round(thisNbrhdCtrR,pRes.angleSigFig);
         rotToKeep = round(rotToKeep, pRes.angleSigFig);
         rotToKeep(~ismember(rotToKeep,pRes.rotAngleFromInd)) = [];
+        rotToKeep(rotToKeep==0) = [];
         
         % create indices for x y z r to keep
         nInd = pRes.nZToKeep * length(rotToKeep) * pRes.nXYToKeep;
@@ -303,12 +306,16 @@ for ff = 1:length(pRes.whichFrames),
                 % themselves
                 [yIx, xIx, thisCorr] = find(computeBlockImageCorrs(blockRot, ...
                     stackSlice, nbrhdInf, pRes.minCorrOverlap, pRes.corrType));
+                
+                % don't try to store correlations if we don't find any 
+                %(bc we are using a uint and all correlations are <= 0)
+                if isempty(thisCorr), continue; end
                 % --------------------------------------------- %
                 
                 % get the indices of the top nXYToKeep correlations
                 [~, thisCorrSortIx] = sort(thisCorr,'descend');
                 
-                thisCorrXYToKeepIx  = thisCorrSortIx(1:min(length(thisCorr),pRes.nXYToKeep));
+                thisCorrXYToKeepIx  = thisCorrSortIx(1:min(length(thisCorr), pRes.nXYToKeep));
                 
                 % determine where to store these newly computed values
                 storeInd = nn:nn+length(thisCorrXYToKeepIx)-1;
