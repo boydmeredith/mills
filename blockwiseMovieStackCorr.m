@@ -12,7 +12,7 @@ addOptional(p,'coarseRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'coarseRotWindowRange',20, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'fineRotStepSz',.1, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'fineRotWindowRange',2, @(x) ispositive(x) & isnumeric(x));
-addOptional(p,'nXYToKeep', 1000, @(x) isnumeric(x) & ~mod(x,1));
+addOptional(p,'nXYToKeep', 400, @(x) isnumeric(x) & ~mod(x,1));
 addOptional(p,'nZToKeep', 11, @(x) isnumeric(x) & mod(x,2) == 1);
 addOptional(p,'zFitPower',5,@(x) isnumeric(x) & ~mod(x,1));
 addOptional(p,'angleSigFig',1,@(x) isnumeric(x) & ~mod(x,1));
@@ -51,20 +51,19 @@ addOptional(p, 'diffGifName', 'blockDiffs.gif');
 addOptional(p, 'montageGifName', 'blockMontage.gif');
 addOptional(p, 'allValsPeakGifName', 'allValsPeak.gif');
 
-addOptional(p, 'priorFigName','priorFig.pdf');
+addOptional(p, 'searchRangeFigName','searchRangeFig.pdf');
 
-addOptional(p, 'zPriorUseFit', false, @islogical)
-addOptional(p, 'rPriorUseFit', true, @islogical)
+addOptional(p, 'zSearchRangeUseFit', false, @islogical)
+addOptional(p, 'rSearchRangeUseFit', true, @islogical)
 
 addOptional(p,'showFigs','off',@(x) any(strcmp({'on','off'},x)));
 
-addOptional(p, 'xyzrPriorSaveName','xyzrPrior.mat',@isstr)
-addOptional(p, 'useSavedPrior', true, @islogical);
-addOptional(p, 'useSavedPriorEitherWay', false, @islogical);
-addOptional(p, 'nbrhdXMargin', 100, @isnumeric);
-addOptional(p, 'nbrhdYMargin', 100, @isnumeric);
-addOptional(p, 'minCorrOverlap', .5, @isnumeric);
-addOptional(p, 'filtKern', [4 4], @(x) isnumeric(x) & length(x)==2)
+addOptional(p, 'xyzrSearchRangeSaveName','xyzrSearchRange.mat',@isstr)
+addOptional(p, 'useSavedSearchRange', true, @islogical);
+addOptional(p, 'useSavedSearchRangeEitherWay', false, @islogical);
+addOptional(p, 'nbrhdXMargin', 10, @isnumeric);
+addOptional(p, 'nbrhdYMargin', 10, @isnumeric);
+addOptional(p, 'minCorrOverlap', .8, @isnumeric);
 addOptional(p, 'nRSTD', 8)
 
 %addOptional(p,'saveName','',@isstr);
@@ -74,6 +73,8 @@ p.KeepUnmatched = true;
 parse(p,varargin{:})
 % ----------------------------------------- %
 
+
+fprintf('\nstarting registration for subj: %s on movie: %s \n',subj, movieName);
 % reassign p.Results to pResults and get rid of p so it is easier to manage
 % subfields
 if ~isempty(fields(p.Unmatched))
@@ -207,7 +208,7 @@ montageGrid = zeros(( maxBHeight + 3) * pRes.nBlockSpan, ...
 
 % initialize matrix to store peak of correlations
 xyzrcPeak = zeros(5,nBlocks,movieLength);
-xyzrPrior = zeros(5,nBlocks);
+xyzrSearchRange = zeros(5,nBlocks);
 
 
 % ------ iterate through the frames of the movie ------ %
@@ -231,7 +232,7 @@ for ff = 1:length(pRes.whichFrames),
     
     
     if ff == 1
-        xyzrPrior = getPrior(movieFrame, blockLocations, stack, pRes);
+        xyzrSearchRange = getSearchRange(movieFrame, blockLocations, stack, pRes);
     else
         [xx, yy] = meshgrid(1:pRes.nBlockSpan,1:pRes.nBlockSpan);
         [fX, ~, outX]  = fit([xx(:), yy(:)], xyzrcPeak(1,:,thisFrameNo-1)', 'poly11','Robust','Bisquare');
@@ -242,10 +243,10 @@ for ff = 1:length(pRes.whichFrames),
         [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], xyzrcPeak(3,~outliers,thisFrameNo-1)', 'loess','Robust','off');
         [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], xyzrcPeak(4,~outliers,thisFrameNo-1)', 'loess','Robust','off');
 
-        xyzrPrior(1,:) = fX(xx(:),yy(:));
-        xyzrPrior(2,:) = fY(xx(:),yy(:));
-        xyzrPrior(3,:) = round(fZ(xx(:),yy(:)));
-        xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
+        xyzrSearchRange(1,:) = fX(xx(:),yy(:));
+        xyzrSearchRange(2,:) = fY(xx(:),yy(:));
+        xyzrSearchRange(3,:) = round(fZ(xx(:),yy(:)));
+        xyzrSearchRange(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
         
     end
     
@@ -260,16 +261,16 @@ for ff = 1:length(pRes.whichFrames),
         [blocki, blockj] = ind2sub([sqrt(nBlocks), sqrt(nBlocks)], thisBlockNo);
         
         if ~isempty(nbrhdInf)
-            nbrhdInf.xCtr = xyzrPrior(1,thisBlockNo);
-            nbrhdInf.yCtr = xyzrPrior(2,thisBlockNo);
+            nbrhdInf.xCtr = xyzrSearchRange(1,thisBlockNo);
+            nbrhdInf.yCtr = xyzrSearchRange(2,thisBlockNo);
         end
         
         % === Fill in correlations for neighborhood around peak ==== %
         % -----------------------------------------------------------%
         % specify a range of z values and rotation angles to save in the
         % persistent matrix
-        thisNbrhdCtrZ = xyzrPrior(3,thisBlockNo);
-        thisNbrhdCtrR = xyzrPrior(4,thisBlockNo);
+        thisNbrhdCtrZ = xyzrSearchRange(3,thisBlockNo);
+        thisNbrhdCtrR = xyzrSearchRange(4,thisBlockNo);
         
         zRangeToKeep = max(1,thisNbrhdCtrZ-ceil(pRes.nZToKeep/2)) : ...
             min(stackDim.depth,thisNbrhdCtrZ+ceil(pRes.nZToKeep/2));
@@ -513,27 +514,27 @@ end
 end
 
 
-function [xyzrPrior] = getPrior(movieFrame, blockLocations, stack, pRes)
+function [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, pRes)
 
-priorPath = fullfile(pRes.corrDir, pRes.xyzrPriorSaveName);
+searchRangePath = fullfile(pRes.corrDir, pRes.xyzrSearchRangeSaveName);
 
-if pRes.useSavedPrior
-    fprintf('Attempting to use saved prior...\n');
-    if ~exist(priorPath, 'file')
-        fprintf('Could not find file with prior. Recomputing...');
+if pRes.useSavedSearchRange
+    fprintf('Attempting to use saved searchRange...\n');
+    if ~exist(searchRangePath, 'file')
+        fprintf('Could not find file with searchRange. Recomputing...');
     else
-        p = load(priorPath);
+        p = load(searchRangePath);
         hasSameParams = (p.pRes.nBlockSpan == pRes.nBlockSpan & isequal(p.pRes.whichBlocks, pRes.whichBlocks) ...
             & isequal(p.pRes.whichSlices, pRes.whichSlices) & p.pRes.whichFrames(1) == pRes.whichFrames(1) ...
-            & p.pRes.inferZWindow == pRes.inferZWindow & (p.pRes.zFitPower == pRes.zFitPower | pRes.zPriorUseFit == 0) ...
-            & p.pRes.zPriorUseFit == pRes.zPriorUseFit &   (p.pRes.rFitPower == pRes.rFitPower | pRes.rPriorUseFit == 0)...
-            & p.pRes.rPriorUseFit == pRes.rPriorUseFit & isequal(p.pRes.coarseRotAngles,pRes.coarseRotAngles) ...
+            & p.pRes.inferZWindow == pRes.inferZWindow & (p.pRes.zFitPower == pRes.zFitPower | pRes.zSearchRangeUseFit == 0) ...
+            & p.pRes.zSearchRangeUseFit == pRes.zSearchRangeUseFit &   (p.pRes.rFitPower == pRes.rFitPower | pRes.rSearchRangeUseFit == 0)...
+            & p.pRes.rSearchRangeUseFit == pRes.rSearchRangeUseFit & isequal(p.pRes.coarseRotAngles,pRes.coarseRotAngles) ...
             & isequal(p.pRes.rotAngleFromInd,pRes.rotAngleFromInd));
-        if hasSameParams || pRes.useSavedPriorEitherWay
-            xyzrPrior = p.xyzrPrior;
+        if hasSameParams || pRes.useSavedSearchRangeEitherWay
+            xyzrSearchRange = p.xyzrSearchRange;
             return
         else
-            fprintf('Parameters did not match previously computed prior. Recomputing...');
+            fprintf('Parameters did not match previously computed searchRange. Recomputing...');
             clear p
         end
     end
@@ -555,7 +556,7 @@ end
 nBlocks = pRes.nBlockSpan^2;
 
 % ------------ get initial z  estimate for each block --------------- %
-fprintf('getting initial prior on z for all blocks...\n');
+fprintf('getting initial searchRange on z for all blocks...\n');
 bestZData    = zeros(1,nBlocks);
 bestZFit     = zeros(1,nBlocks);
 bestRData    = zeros(1,nBlocks);
@@ -646,18 +647,18 @@ outliersX = outX.residuals > pRes.nRSTD*robustSTD(outX.residuals);
 outliersY = outY.residuals > pRes.nRSTD*robustSTD(outY.residuals);
 outliers = outliersX | outliersY;
 
-if pRes.zPriorUseFit
+if pRes.zSearchRangeUseFit
     [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZFit(~outliers)', 'loess','Robust','off');
 else
     [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZData(~outliers)', 'loess','Robust','off');
 end
-xyzrPrior(1,:) = fX(xx(:),yy(:));
-xyzrPrior(2,:) = fY(xx(:),yy(:));
-xyzrPrior(3,:) = round(fZ(xx(:),yy(:)));
+xyzrSearchRange(1,:) = fX(xx(:),yy(:));
+xyzrSearchRange(2,:) = fY(xx(:),yy(:));
+xyzrSearchRange(3,:) = round(fZ(xx(:),yy(:)));
 assert(isequal(fZ(xx(:),yy(:)),reshape(fZ(xx,yy),[],1)));
 
 % ------------ get initial rotation angle estimate for each block --------------- %
-fprintf('getting initial prior on r for all blocks...\n');
+fprintf('getting initial searchRange on r for all blocks...\n');
 highestCorr=-Inf;lowestCorr=Inf;
 for bb = 1:length(pRes.whichBlocks)
     % select the relevant block location matrix and get its dimensions so
@@ -670,8 +671,8 @@ for bb = 1:length(pRes.whichBlocks)
     fprintf('computing normxcorr2 for block %03i r estimate...\n',thisBlockNo);
     tic
     
-    % use the block z prior that we just computed above
-    thisBlockBestZ = xyzrPrior(3,thisBlockNo);
+    % use the block z searchRange that we just computed above
+    thisBlockBestZ = xyzrSearchRange(3,thisBlockNo);
     bestStackSliceNoRot = stack(:,:,thisBlockBestZ);
     
     % preallocate matrix for rotation angles
@@ -737,43 +738,43 @@ outliersX = outX.residuals > pRes.nRSTD*robustSTD(outX.residuals);
 outliersY = outY.residuals > pRes.nRSTD*robustSTD(outY.residuals);
 outliers = outliersX | outliersY;
 
-if pRes.zPriorUseFit
+if pRes.zSearchRangeUseFit
     [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZFit(~outliers)', 'loess','Robust','off');
 else
     [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZData(~outliers)', 'loess','Robust','off');
 end
-xyzrPrior(1,:) = fX(xx(:),yy(:));
-xyzrPrior(2,:) = fY(xx(:),yy(:));
-xyzrPrior(3,:) = round(fZ(xx(:),yy(:)));
+xyzrSearchRange(1,:) = fX(xx(:),yy(:));
+xyzrSearchRange(2,:) = fY(xx(:),yy(:));
+xyzrSearchRange(3,:) = round(fZ(xx(:),yy(:)));
 assert(isequal(fZ(xx(:),yy(:)),reshape(fZ(xx,yy),[],1)));
 
-if pRes.zPriorUseFit
+if pRes.zSearchRangeUseFit
     [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRFit(~outliers)', 'loess','Robust','off');
 else
     [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRData(~outliers)', 'loess','Robust','off');
 end
-xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
-if pRes.zPriorUseFit
+xyzrSearchRange(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
+if pRes.zSearchRangeUseFit
     [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRFit(~outliers)', 'loess','Robust','off');
 else
     [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRData(~outliers)', 'loess','Robust','off');
 end
-xyzrPrior(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
+xyzrSearchRange(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
 
 
-if ~isempty(pRes.priorFigName)
-    priorFig = figure('visible', pRes.showFigs);
+if ~isempty(pRes.searchRangeFigName)
+    searchRangeFig = figure('visible', pRes.showFigs);
     
-    [~, pfM]      = makeSubplots(priorFig, 2, 4, .1, .1, [.05 .05 .95 .95]);
-    colormap(priorFig, colormapRedBlue);
+    [~, pfM]      = makeSubplots(searchRangeFig, 2, 4, .1, .1, [.05 .05 .95 .95]);
+    colormap(searchRangeFig, colormapRedBlue);
     
     imagesc([reshape(bestXCtrData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrPrior(1,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,1));
+        reshape(xyzrSearchRange(1,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,1));
     title(pfM(1,1),'X');     colorbar(pfM(1,1))
     axis(pfM(1,1),'image');
 
     imagesc(reshape(outliersX,pRes.nBlockSpan,pRes.nBlockSpan),'parent',pfM(2,1));
-    axis(pfM(2,1),'image');
+    axis(pfM(2,2),'image');
     
     hist(pfM(3,1), outX.residuals,1000);
     hold(pfM(3,1), 'on')
@@ -781,7 +782,7 @@ if ~isempty(pRes.priorFigName)
     -pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(3,1),'ylim'),'r')
     
     imagesc([reshape(bestYCtrData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrPrior(2,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,2));
+        reshape(xyzrSearchRange(2,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,2));
     title(pfM(1,2),'Y'); colorbar(pfM(1,2))
     axis(pfM(1,2),'image');
     
@@ -794,21 +795,21 @@ if ~isempty(pRes.priorFigName)
     -pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(3,2),'ylim'),'r')
 
     imagesc([reshape(bestZData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrPrior(3,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(4,1));
+        reshape(xyzrSearchRange(3,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(4,1));
     title(pfM(4,1),'Z'); colorbar(pfM(4,1))
     axis(pfM(4,1),'image');
     
     imagesc([reshape(bestRData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrPrior(4,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(4,2));
+        reshape(xyzrSearchRange(4,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(4,2));
     title(pfM(4,2),'R'); colorbar(pfM(4,2))
     axis(pfM(4,2),'image');
     
-    set(priorFig, 'position',[50 50 1000 600], 'paperpositionmode','auto');
-    saveas(priorFig, fullfile(pRes.corrDir, pRes.priorFigName));
-    close(priorFig)
+    set(searchRangeFig, 'position',[50 50 1000 600], 'paperpositionmode','auto');
+    saveas(searchRangeFig, fullfile(pRes.corrDir, pRes.searchRangeFigName));
+    close(searchRangeFig)
 end
 
-save(priorPath, 'xyzrPrior','pRes')
+save(searchRangePath, 'xyzrSearchRange','pRes')
 
 end
 
