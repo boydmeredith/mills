@@ -6,15 +6,20 @@ p = inputParser;
 
 addOptional(p,'corrType', 'uint16', @(x) ismember(x,{'uint8','uint16','uint32','uint64','double'}));
 addOptional(p,'nBlockSpan',10,@(x) isnumeric(x) & ~mod(x,1));
+%addOptional(p,'mBlocks',6,@(x) isnumeric(x) & ~mod(x,1));
+%addOptional(p,'nBlocks',6,@(x) isnumeric(x) & ~mod(x,1));
 addOptional(p,'blockOverlap',.2,@(x) ispositive(x) & isnumeric(x));
+%addOptional(p,'blockOverlap',10,@(x) ispositive(x) & isnumeric(x));
 
 addOptional(p,'coarseRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'coarseRotWindowRange',20, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'fineRotStepSz',.1, @(x) ispositive(x) & isnumeric(x));
-addOptional(p,'fineRotWindowRange',2, @(x) ispositive(x) & isnumeric(x));
+%addOptional(p,'fineRotStepSz',.25, @(x) ispositive(x) & isnumeric(x));
+addOptional(p,'fineRotWindowRange',4, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'nXYToKeep', 400, @(x) isnumeric(x) & ~mod(x,1));
 addOptional(p,'nZToKeep', 11, @(x) isnumeric(x) & mod(x,2) == 1);
 addOptional(p,'zFitPower',5,@(x) isnumeric(x) & ~mod(x,1));
+%addOptional(p,'angleSigFig',2,@(x) isnumeric(x) & ~mod(x,1));
 addOptional(p,'angleSigFig',1,@(x) isnumeric(x) & ~mod(x,1));
 
 addOptional(p,'rFitPower',4,@(x) isnumeric & ~mod(x,1));
@@ -54,7 +59,7 @@ addOptional(p, 'allValsPeakGifName', 'allValsPeak.gif');
 addOptional(p, 'searchRangeFigName','searchRangeFig.pdf');
 
 addOptional(p, 'zSearchRangeUseFit', false, @islogical)
-addOptional(p, 'rSearchRangeUseFit', true, @islogical)
+addOptional(p, 'rSearchRangeUseFit', false, @islogical)
 
 addOptional(p,'showFigs','off',@(x) any(strcmp({'on','off'},x)));
 
@@ -63,8 +68,15 @@ addOptional(p, 'useSavedSearchRange', true, @islogical);
 addOptional(p, 'useSavedSearchRangeEitherWay', false, @islogical);
 addOptional(p, 'nbrhdXMargin', 10, @isnumeric);
 addOptional(p, 'nbrhdYMargin', 10, @isnumeric);
+addOptional(p, 'searchRangeXMargin', 10, @isnumeric);
+addOptional(p, 'searchRangeYMargin', 10, @isnumeric);
 addOptional(p, 'minCorrOverlap', .8, @isnumeric);
 addOptional(p, 'nRSTD', 8)
+
+addOptional(p, 'flagZNFromEdge', 3)
+addOptional(p, 'flagRNFromEdge', 3)
+
+
 
 %addOptional(p,'saveName','',@isstr);
 
@@ -101,11 +113,9 @@ set(0, 'DefaultFigureVisible', pRes.showFigs);
 
 close all;
 
-rFitGif  = []; rFitMap  = []; rFitFigNo = 1;
-zFitGif  = []; zFitMap  = []; 
-ballStickGif   = []; ballStickMap   = []; 
-diffGif  = []; diffMap  = []; diffFigNo = 4;
-montageGif  = []; montageMap  = []; montageFigNo = 5;
+ballStickGif   = []; ballStickMap   = [];
+%diffGif  = []; diffMap  = []; diffFigNo = 4;
+montageGif  = []; montageMap  = [];
 allValsPeakGif = []; allValsPeakMap = [];
 
 if ~isempty(pRes.ballStickGifName)
@@ -161,7 +171,7 @@ rmfield(pRes,'loadedStack');
 movieInf = imfinfo(moviePath);
 movieHeight = movieInf(1).Height;
 movieWidth  = movieInf(1).Width;
-movieLength = length(movieInf); 
+movieLength = length(movieInf);
 
 if ~isempty(pRes.loadedMovie)
     movie = pRes.loadedMovie;
@@ -207,7 +217,7 @@ montageGrid = zeros(( maxBHeight + 3) * pRes.nBlockSpan, ...
     pRes.nBlockSpan * (3+ maxBWidth));
 
 % initialize matrix to store peak of correlations
-xyzrcPeak = zeros(5,nBlocks,movieLength);
+xyzrcoPeak = zeros(6,nBlocks,movieLength);
 xyzrSearchRange = zeros(5,nBlocks);
 
 
