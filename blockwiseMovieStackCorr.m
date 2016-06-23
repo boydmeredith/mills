@@ -232,24 +232,7 @@ for ff = 1:length(pRes.whichFrames),
     
     
     if ff == 1
-        xyzrSearchRange = getSearchRange(movieFrame, blockLocations, stack, pRes);
-    else
-        [xx, yy] = meshgrid(1:pRes.nBlockSpan,1:pRes.nBlockSpan);
-        [fX, ~, outX]  = fit([xx(:), yy(:)], xyzrcPeak(1,:,thisFrameNo-1)', 'poly11','Robust','Bisquare');
-        [fY, ~, outY]  = fit([xx(:), yy(:)], xyzrcPeak(2,:,thisFrameNo-1)', 'poly11','Robust','Bisquare');
-        outliersX = outX.residuals > pRes.nRSTD*robustSTD(outX.residuals);
-        outliersY = outY.residuals > pRes.nRSTD*robustSTD(outY.residuals);
-        outliers = outliersX | outliersY;
-        [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], xyzrcPeak(3,~outliers,thisFrameNo-1)', 'loess','Robust','off');
-        [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], xyzrcPeak(4,~outliers,thisFrameNo-1)', 'loess','Robust','off');
-
-        xyzrSearchRange(1,:) = fX(xx(:),yy(:));
-        xyzrSearchRange(2,:) = fY(xx(:),yy(:));
-        xyzrSearchRange(3,:) = round(fZ(xx(:),yy(:)));
-        xyzrSearchRange(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
-        
-        subplot(1,2,1)
-        
+        [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, pRes);
     end
     
     % ----------------- iterate through the blocks to keep values ------------------- %
@@ -284,6 +267,7 @@ for ff = 1:length(pRes.whichFrames),
         rotToKeep(~ismember(rotToKeep,pRes.rotAngleFromInd)) = [];
         rotToKeep(rotToKeep==0) = [];
         
+        
         % create indices for x y z r to keep
         nInd = pRes.nZToKeep * length(rotToKeep) * pRes.nXYToKeep;
         indZ = zeros(nInd,1,'uint8');
@@ -307,9 +291,9 @@ for ff = 1:length(pRes.whichFrames),
                 % use find to get y and x indices as well as the values
                 % themselves
                 [yIx, xIx, thisCorr] = find(computeBlockImageCorrs(blockRot, ...
-                    stackSlice, nbrhdInf, pRes.minCorrOverlap, pRes.corrType));
+                    stackSlice, nbrhdInf, pRes.minCorrOverlap, 'double'));
                 
-                % don't try to store correlations if we don't find any 
+                % don't try to store correlations if we don't find any
                 %(bc we are using a uint and all correlations are <= 0)
                 if isempty(thisCorr), continue; end
                 % --------------------------------------------- %
