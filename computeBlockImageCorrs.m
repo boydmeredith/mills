@@ -86,7 +86,7 @@ end
 
 % zero out elements of the correlation matrix that correspond to overlap
 % below the minimum required
-corrMat(~legalOverlaps) = 0;
+corrMat = corrMat .* legalOverlaps;
 
 if ~strcmp(corrType,'double')
     corrMat = cast(double(intmax(corrType)) * corrMat,corrType);
