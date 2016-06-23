@@ -328,27 +328,40 @@ for ff = 1:length(pRes.whichFrames),
                 indY(storeInd) = uint16(yIx(thisCorrXYToKeepIx));
                 indZ(storeInd) = uint8(thisSliceNo);
                 indR(storeInd) = uint8(find(pRes.rotAngleFromInd == rr));
-                corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
+                % convert correlations to desired type and store them
+                if strcmp(pRes.corrType,'double')
+                    corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
+                else
+                    corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx) * intmax(pRes.corrType);
+                end
                 
                 % increment index counter
                 nn = storeInd(end)+1;
             end
         end
         
-        % get the peak and save it
-        
+        % get the overall peak for this block/frame
         [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, pRes);
+        % plot all of the saved correlations for this block/frame and mark
+        % the overall peak
         plot(allValsPeakMat(blocki,blockj), 1:length(corrValsToSave), corrValsToSave,'-',...
             peakInd, cPeak, 'mx');
-        
-        
+        % transform x,y from corrMat space to reference space
         blkCtrInRefX  = double(indX(peakInd)) - (bInf.width-1)/2;
         blkCtrInRefY  = double(indY(peakInd)) - (bInf.height-1)/2;
+        % flag best z and r values that are near edge of computed window
+        zEdgeFlag = find(zRangeToKeep==indZ(peakInd))-1 <= pRes.flagZNFromEdge | ...
+            length(zRangeToKeep)-find(zRangeToKeep==indZ(peakInd)) <= pRes.flagZNFromEdge;
+        rEdgeFlag = indR(peakInd)-find(pRes.rotAngleFromInd==rotToKeep(1)) <= pRes.flagRNFromEdge | ...
+            find(pRes.rotAngleFromInd==rotToKeep(end))-indR(peakInd) <= pRes.flagRNFromEdge;
         
-        xyzrcPeak(:,thisBlockNo, thisFrameNo) = [blkCtrInRefX, blkCtrInRefY, ...
+        % save absolute peak and 
+        if ~strcmp(pRes.corrType,'double'), 
+            cPeak = double(cPeak)/double(intmax(pRes.corrType)); 
+        end
+        xyzrcoPeak(:,thisBlockNo, thisFrameNo) = [blkCtrInRefX, blkCtrInRefY, ...
             double(indZ(peakInd)), pRes.rotAngleFromInd(indR(peakInd)),...
-            double(cPeak)/double(intmax(pRes.corrType))]';
-        
+            cPeak, zEdgeFlag | rEdgeFlag]';
         
         
         % get the reference block from the peak location. this should
@@ -367,7 +380,7 @@ for ff = 1:length(pRes.whichFrames),
         refBlock = padarray(refBlock, [topPad leftPad], 0, 'pre');
         refBlock = padarray(refBlock, [bottomPad rightPad], 0, 'post');
         
-        bestBlockRot = rotateAndSelectBlock(movieFrame, thisBlockLoc, pRes.rotAngleFromInd(indR(peakInd)));
+        bestBlockRot = rotateAndSelectBlock(movieFrame, bInf, pRes.rotAngleFromInd(indR(peakInd)));
         
         % plot block-ref montage
         montageGrid(1+(maxBHeight+3)*(blocki-1):...
@@ -376,12 +389,13 @@ for ff = 1:length(pRes.whichFrames),
             (2*maxBWidth+3)*(blockj-1)+2*size(bestBlockRot,2)) = [normalizeToZeroOne(bestBlockRot) normalizeToZeroOne(refBlock)];
         
         % plot block-ref diff
-        imagesc(normalizeToZeroOne(bestBlockRot) - imhistmatch(normalizeToZeroOne(refBlock), bestBlockRot), 'parent',diffPlotMat(blocki,blockj));
+        imagesc(polyval(polyfit(bestBlockRot(:),refBlock(:),1),bestBlockRot) - refBlock,'parent',diffPlotMat(blocki,blockj));
+        %imagesc(normalizeToZeroOne(bestBlockRot) - imhistmatch(normalizeToZeroOne(refBlock), normalizeToZeroOne(bestBlockRot)), 'parent',diffPlotMat(blocki,blockj));
         set(diffPlotMat(blocki,blockj), 'XTick',[],'YTick',[]);
         colormap(diffPlotMat(blocki,blockj), bone);
         
         
-
+        
         
         % % TODO: make two separate functions for pair plots and block
         % znbrhds
@@ -423,16 +437,22 @@ for ff = 1:length(pRes.whichFrames),
         
     end
     
+    % update the search range for the next frame and keep track of the
+    % outliers for this frame
+    [xyzrSearchRange, outliersXY] = fitXYZRSearchRange(xyzrcoPeak(1,:, thisFrameNo),xyzrcoPeak(2,:, thisFrameNo),...
+        xyzrcoPeak(3,:, thisFrameNo), xyzrcoPeak(4,:, thisFrameNo), pRes);
+    xyzrcoPeak(6,:, thisFrameNo) = xyzrcoPeak(6,:, thisFrameNo) | outliersXY;
+    
+    % add the ball stick figure for this frame to a running gif, if desired
     if ~isempty(pRes.ballStickGifName)
-        ballStickFig = xyzrcBallStickFig(xyzrcPeak, thisFrameNo, ballStickFig, stackDim);
+        ballStickFig = xyzrcBallStickFig(xyzrcoPeak, thisFrameNo, ballStickFig, stackDim);
         [ballStickGif, ballStickMap] = createGif(ballStickFig,ff,movieLength, ballStickGif,...
             ballStickMap, fullfile(pRes.corrDir,pRes.ballStickGifName));
     end
     
     
-    % turn figures into gifs
-    %[rFitGif, rFitMap] = createGif(rFitFigNo,ff, movieLength,rFitGif,rFitMap,fullfile(pRes.corrDir,pRes.rFitGifName));
-    %[zFitGif, zFitMap] = createGif(zFitFigNo,ff, movieLength,zFitGif,zFitMap,fullfile(pRes.corrDir, pRes.zFitGifName));
+    % turn figures into gifs...
+    % montage image
     set(0,'currentfigure',montageFig);
     montageFigAx = cla;
     imagesc(montageGrid,'parent', montageFigAx);
@@ -440,17 +460,20 @@ for ff = 1:length(pRes.whichFrames),
     set(montageFig, 'Position', [1, 1, 1577, 954]);
     set(montageFigAx,'position',[.01 .01 .98 .98],'XTick',[],'YTick',[])
     axis(montageFigAx, 'image');
+    
     [montageGif, montageMap] = createGif(montageFig,ff, movieLength,montageGif,...
         montageMap,fullfile(pRes.corrDir, pRes.montageGifName));
+    % difference image
     [diffGif, diffMap] = createGif(diffFig,ff, movieLength,diffGif,...
         diffMap,fullfile(pRes.corrDir, pRes.diffGifName));
+    % all correlations with absolute peak marked
     [allValsPeakGif, allValsPeakMap] = createGif(allValsPeakFig,ff, movieLength,allValsPeakGif,...
         allValsPeakMap,fullfile(pRes.corrDir, pRes.allValsPeakGifName));
     
     
     % save summary
     if ~isempty(pRes.summarySaveName)
-        save(fullfile(pRes.corrDir, pRes.summarySaveName), 'xyzrcPeak', 'blockLocations', ...
+        save(fullfile(pRes.corrDir, pRes.summarySaveName), 'xyzrcoPeak', 'blockLocations', ...
             'rotAngleFromInd','stackPath','moviePath','analysisDate');
     end
     
@@ -524,6 +547,14 @@ end
 
 
 function [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, pRes)
+% function [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, pRes)
+
+if isempty(pRes.searchRangeXMargin) || isempty(pRes.searchRangeYMargin)
+    nbrhdInf = [];
+else
+    nbrhdInf = struct('xMargin', pRes.searchRangeXMargin, 'yMargin', pRes.searchRangeYMargin);
+end
+
 
 searchRangePath = fullfile(pRes.corrDir, pRes.xyzrSearchRangeSaveName);
 
@@ -549,7 +580,7 @@ if pRes.useSavedSearchRange
     end
 end
 
-    
+
 if ~isempty(pRes.zFitFigName)
     zFitFig = figure('Visible',pRes.showFigs);
     [~, zFitPlotMat] = makeSubplots(get(zFitFig,'Number'),pRes.nBlockSpan,pRes.nBlockSpan,.1,.1,[.05 .05 .95 .95]);
@@ -572,6 +603,8 @@ bestRData    = zeros(1,nBlocks);
 bestRFit     = zeros(1,nBlocks);
 bestXCtrData  = zeros(1,nBlocks);
 bestYCtrData  = zeros(1,nBlocks);
+bestXCtrDataRot = zeros(1,nBlocks);
+bestYCtrDataRot = zeros(1,nBlocks);
 blockHeights = zeros(1,nBlocks);
 blockWidths  = zeros(1,nBlocks);
 
@@ -583,7 +616,7 @@ for bb = 1:length(pRes.whichBlocks)
     thisBlockLoc = blockLocations(:,:,thisBlockNo);
     bInf         = getBlockInf(thisBlockLoc);
     block        = movieFrame(bInf.indY,bInf.indX);
-                
+    
     fprintf('computing normxcorr2 for block %03i z estimate...\n',thisBlockNo);
     tic
     
@@ -604,7 +637,7 @@ for bb = 1:length(pRes.whichBlocks)
     % maximizes the fit curve
     
     maxCorrByZData = squeeze(max(max(frameCorrVolNoRot(:,:,:),[],1),[],2));
-        % get position of upper left corner of block at best match
+    % get position of upper left corner of block at best match
     [~, maxInd]    = max(frameCorrVolNoRot(:));
     [bestYData, bestXData, bestZData(thisBlockNo)] = ind2sub(size(frameCorrVolNoRot), maxInd);
     
@@ -615,56 +648,46 @@ for bb = 1:length(pRes.whichBlocks)
     
     zIndToFit   = max(min(pRes.whichSlices), bestZData(thisBlockNo)-ceil(pRes.inferZWindow/2)) : ...
         min(max(pRes.whichSlices), bestZData(thisBlockNo)+ceil(pRes.inferZWindow/2));
-
+    
     fitZ = polyfit(double(zIndToFit), double(maxCorrByZData(zIndToFit)'), pRes.zFitPower);
     
     maxCorrByZFit = polyval(fitZ, zIndToFit);
     bestZFit(thisBlockNo) = zIndToFit(maxCorrByZFit == max(maxCorrByZFit));
     
-    % save a report of the peak correlations and fits that will be used to get neighborhoods 
+    % save a report of the peak correlations and fits that will be used to get neighborhoods
     if ~isempty(pRes.zFitFigName)
         [blocki, blockj] = ind2sub([pRes.nBlockSpan, pRes.nBlockSpan], thisBlockNo);
         
         ax1 = zFitPlotMat(blocki, blockj); hold(ax1, 'on');
         set(ax1,'box','off','ylim',[-.25 1], 'YTick',[round(max(maxCorrByZData),2)],...
-            'xlim',[1 stackDim.depth], 'XTick', bestZData(thisBlockNo) , 'fontsize',6);                          
+            'xlim',[1 stackDim.depth], 'XTick', bestZData(thisBlockNo) , 'fontsize',6);
         
-        % plot fit to data 
+        % plot fit to data
         plot(ax1,[bestZFit(thisBlockNo) bestZFit(thisBlockNo)],[0 1], '-.', ...
             zIndToFit, maxCorrByZFit, '-', 'color', [.9 .5 .7],'linewidth',1);
         % plot data points with mark best z
         plot(ax1,repmat(bestZData(thisBlockNo),1,2),[0 1], '--','color', [.3 .5 .7],'linewidth',1);
         plot(ax1, 1:stackDim.depth, maxCorrByZData, '.', 'color', [.2 .4 .6], 'markersize',1.75)%;,...,
-            %'markeredgecolor','k','linewidth',.05,'markersize',3);
+        %'markeredgecolor','k','linewidth',.05,'markersize',3);
         
         if blockj == 1 & blocki == ceil(pRes.nBlockSpan/2), ylabel(ax1,'correlation');
         end
         if blockj == ceil(pRes.nBlockSpan/2) & blocki == pRes.nBlockSpan, xlabel(ax1,'stack slice #')
         end
     end
-   
+    
     clear frameCorrVolNoRot;
 end
 
 if ~isempty(pRes.zFitFigName), saveas(zFitFig, fullfile(pRes.frameCorrDir, pRes.zFitFigName)); end
 
-[xx, yy] = meshgrid(1:pRes.nBlockSpan,1:pRes.nBlockSpan);
-
-[fX, ~, outX]  = fit([xx(:), yy(:)], bestXCtrData', 'poly11','Robust','Bisquare');
-[fY, ~, outY]  = fit([xx(:), yy(:)], bestYCtrData', 'poly11','Robust','Bisquare');
-outliersX = outX.residuals > pRes.nRSTD*robustSTD(outX.residuals);
-outliersY = outY.residuals > pRes.nRSTD*robustSTD(outY.residuals);
-outliers = outliersX | outliersY;
-
+% fit x, y, z to get search range from correlations obtained so far
 if pRes.zSearchRangeUseFit
-    [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZFit(~outliers)', 'loess','Robust','off');
+    zIn = bestZFit;
 else
-    [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZData(~outliers)', 'loess','Robust','off');
+    zIn = bestZData;
 end
-xyzrSearchRange(1,:) = fX(xx(:),yy(:));
-xyzrSearchRange(2,:) = fY(xx(:),yy(:));
-xyzrSearchRange(3,:) = round(fZ(xx(:),yy(:)));
-assert(isequal(fZ(xx(:),yy(:)),reshape(fZ(xx,yy),[],1)));
+[xyzSearchRange, outliersXYNoRot] = fitXYZRSearchRange(bestXCtrData,bestYCtrData,zIn,[],pRes);
 
 % ------------ get initial rotation angle estimate for each block --------------- %
 fprintf('getting initial searchRange on r for all blocks...\n');
@@ -681,8 +704,14 @@ for bb = 1:length(pRes.whichBlocks)
     tic
     
     % use the block z searchRange that we just computed above
-    thisBlockBestZ = xyzrSearchRange(3,thisBlockNo);
-    bestStackSliceNoRot = stack(:,:,thisBlockBestZ);
+    bestStackSliceNoRot = stack(:,:,xyzSearchRange(3,thisBlockNo));
+    % set up x and y ctr
+    if ~isempty(nbrhdInf)
+        nbrhdInf.xCtr = xyzSearchRange(1,thisBlockNo);
+        nbrhdInf.yCtr = xyzSearchRange(2,thisBlockNo);
+    end
+    
+    
     
     % preallocate matrix for rotation angles
     frameCorrVolRot = zeros(bInf.height+stackDim.height-1,bInf.width+stackDim.width-1,...
@@ -691,17 +720,20 @@ for bb = 1:length(pRes.whichBlocks)
     % get correlations for a pre-determined set of angles
     for rr = 1:length(pRes.coarseRotAngles)
         rotAngle = pRes.coarseRotAngles(rr);
-        blockRot = rotateAndSelectBlock(movieFrame, thisBlockLoc, rotAngle);
+        
+        blockRot = rotateAndSelectBlock(movieFrame, bInf, rotAngle);
         frameCorrVolRot(:,:,rr) = computeBlockImageCorrs(blockRot, ...
-            bestStackSliceNoRot, [], pRes.minCorrOverlap, 'double');
+            bestStackSliceNoRot, nbrhdInf, pRes.minCorrOverlap, 'double');
+        
     end
     toc
     
     % find peak correlation for rotations using same process as for z
     [~, frameCorrVolMaxIx] = max(frameCorrVolRot(:));
-    [bestYData, bestXData, bestRIndData] =  ind2sub(size(frameCorrVolRot), frameCorrVolMaxIx);
-
-    % figure out what angle corresponds to the best r index 
+    [bestYDataRot, bestXDataRot, bestRIndData] =  ind2sub(size(frameCorrVolRot), frameCorrVolMaxIx);
+    bestXCtrDataRot(thisBlockNo) = bestXDataRot - bInf.width/2 + 1/2;
+    bestYCtrDataRot(thisBlockNo) = bestYDataRot - bInf.height/2 + 1/2;
+    % figure out what angle corresponds to the best r index
     bestRData(thisBlockNo) = pRes.coarseRotAngles(bestRIndData);
     maxCorrByRData = squeeze(max(max(frameCorrVolRot,[],1),[],2));
     
@@ -711,22 +743,24 @@ for bb = 1:length(pRes.whichBlocks)
     [~, bestRIndFit] = max(maxCorrByRFit);
     bestRFit(thisBlockNo) = pRes.rotAngleFromInd(bestRIndFit);
     
+    % keep track of best and worst correlations in order to set axis limits
+    % later
     if highestCorr < max(maxCorrByRData), highestCorr = max(maxCorrByRData); end
     if lowestCorr > min(maxCorrByRData), lowestCorr   = min(maxCorrByRData); end
-
-    % save a report of the peak correlations and fits that will be used to get neighborhoods 
+    
+    % save a report of the peak correlations and fits that will be used to get neighborhoods
     if ~isempty(pRes.rFitFigName)
         [blocki, blockj] = ind2sub([pRes.nBlockSpan, pRes.nBlockSpan], thisBlockNo);
         ax1 = rFitPlotMat(blocki, blockj);
         hold(ax1, 'on');
         set(ax1,'box','off','ylim',[lowestCorr highestCorr], 'YTick',[round(max(maxCorrByRData),2)],...%'YTickLabel',[max(maxCorrByRData)], ...
             'xlim',[pRes.coarseRotAngles(1) pRes.coarseRotAngles(end)], 'XTick',[bestRData(thisBlockNo)],...
-            'fontsize', 6); 
+            'fontsize', 6);
         
         % plot fits
         plot(ax1,repmat(bestRFit(thisBlockNo),1,2),[0 1], '-.' ...
             ,pRes.rotAngleFromInd, maxCorrByRFit, '-', 'color', [.9 .5 .7], 'linewidth',1);
-        % plot data 
+        % plot data
         plot(ax1,repmat(bestRData(thisBlockNo),1,2),[0 1], '--', 'color', [.3 .5 .7],'linewidth',1)
         plot(ax1, pRes.coarseRotAngles, maxCorrByRData, '.', 'color', [.2 .4 .6],'markersize',1.75);
         
@@ -741,91 +775,26 @@ for bb = 1:length(pRes.whichBlocks)
 end
 
 if ~isempty(pRes.rFitFigName), saveas(rFitFig, fullfile(pRes.frameCorrDir, pRes.rFitFigName)); end
-[fX, ~, outX]  = fit([xx(:), yy(:)], bestXCtrData', 'poly11','Robust','Bisquare');
-[fY, ~, outY]  = fit([xx(:), yy(:)], bestYCtrData', 'poly11','Robust','Bisquare');
-outliersX = abs(outX.residuals) > pRes.nRSTD*robustSTD(outX.residuals);
-outliersY = abs(outY.residuals) > pRes.nRSTD*robustSTD(outY.residuals);
-outliers = outliersX | outliersY;
 
-if pRes.zSearchRangeUseFit
-    [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZFit(~outliers)', 'loess','Robust','off');
+
+
+% fit x, y, z, r to get search range from correlations obtained looking at
+% rotation
+if pRes.rSearchRangeUseFit
+    rIn = bestRFit;
 else
-    [fZ, ~, outZ] = fit([xx(~outliers), yy(~outliers)], bestZData(~outliers)', 'loess','Robust','off');
+    rIn = bestRData;
 end
-xyzrSearchRange(1,:) = fX(xx(:),yy(:));
-xyzrSearchRange(2,:) = fY(xx(:),yy(:));
-xyzrSearchRange(3,:) = round(fZ(xx(:),yy(:)));
-assert(isequal(fZ(xx(:),yy(:)),reshape(fZ(xx,yy),[],1)));
+[xyzrSearchRange, outliersXY] = fitXYZRSearchRange(bestXCtrDataRot,bestYCtrDataRot,...
+    xyzSearchRange(3,:),rIn,pRes,true);
 
-if pRes.zSearchRangeUseFit
-    [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRFit(~outliers)', 'loess','Robust','off');
-else
-    [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRData(~outliers)', 'loess','Robust','off');
-end
-xyzrSearchRange(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
-if pRes.zSearchRangeUseFit
-    [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRFit(~outliers)', 'loess','Robust','off');
-else
-    [fR, ~, outR] = fit([xx(~outliers), yy(~outliers)], bestRData(~outliers)', 'loess','Robust','off');
-end
-xyzrSearchRange(4,:) = round(fR(xx(:),yy(:)),pRes.angleSigFig);
-
-
-if ~isempty(pRes.searchRangeFigName)
-    searchRangeFig = figure('visible', pRes.showFigs);
-    
-    [~, pfM]      = makeSubplots(searchRangeFig, 2, 4, .1, .5, [0 0 1 1]);
-    colormap(searchRangeFig, colormapRedBlue);
-    
-    imagesc([reshape(bestXCtrData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrSearchRange(1,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,1));
-    title(pfM(1,1),'X');     colorbar(pfM(1,1))
-    axis(pfM(1,1),'image');
-
-    imagesc(reshape(outliersX,pRes.nBlockSpan,pRes.nBlockSpan),'parent',pfM(2,1));
-    axis(pfM(2,1),'image');
-    title(pfM(2,1),'X outliers')
-    
-    hist(pfM(3,1), outX.residuals,1000);
-    hold(pfM(3,1), 'on')
-    plot(pfM(3,1), pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(3,1),'ylim'),'r',...
-    -pRes.nRSTD*[robustSTD(outX.residuals) robustSTD(outX.residuals)],get(pfM(3,1),'ylim'),'r')
-    set(pfM(3,1),'ycolor','w','tickdir','out');box(pfM(3,1),'off');title(pfM(3,1),'X fit residuals')
-    
-    imagesc([reshape(bestYCtrData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrSearchRange(2,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(1,2));
-    title(pfM(1,2),'Y'); colorbar(pfM(1,2))
-    axis(pfM(1,2),'image');
-    
-    imagesc(reshape(outliersY,pRes.nBlockSpan,pRes.nBlockSpan),'parent',pfM(2,2));
-    axis(pfM(2,2),'image');
-    title(pfM(2,1),'Y outliers')
-
-        
-    hist(pfM(3,2), outY.residuals,1000);
-    hold(pfM(3,2), 'on')
-    plot(pfM(3,2), pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(3,2),'ylim'),'r',...
-    -pRes.nRSTD*[robustSTD(outY.residuals) robustSTD(outY.residuals)],get(pfM(3,2),'ylim'),'r')
-    set(pfM(3,2),'ycolor','w','tickdir','out');box(pfM(3,2),'off');title(pfM(3,2),'Y fit residuals')
-    
-
-    imagesc([reshape(bestZData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrSearchRange(3,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(4,1));
-    title(pfM(4,1),'Z'); colorbar(pfM(4,1))
-    axis(pfM(4,1),'image');
-    
-    imagesc([reshape(bestRData,pRes.nBlockSpan,pRes.nBlockSpan)...
-        reshape(xyzrSearchRange(4,:),pRes.nBlockSpan,pRes.nBlockSpan)],'parent',pfM(4,2));
-    title(pfM(4,2),'R'); colorbar(pfM(4,2))
-    axis(pfM(4,2),'image');
-    
-    set(searchRangeFig, 'position',[50 50 1000 600], 'paperpositionmode','manual',...
-        'paperunits','inches','paperposition',[0 0 8.5 11]);
-    saveas(searchRangeFig, fullfile(pRes.corrDir, pRes.searchRangeFigName));
-    %close(searchRangeFig)
-end
 
 save(searchRangePath, 'xyzrSearchRange','pRes')
 
 end
+
+
+
+
+
 
