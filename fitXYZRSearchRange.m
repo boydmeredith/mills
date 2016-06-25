@@ -38,11 +38,11 @@ end
 % if there are rs to fit, fit them, excluding the XY outliers
 if ~isempty(r)
     r = reshape(r, pRes.nBlockSpan^2, 1);
-    [fR, ~, ~] = fit([xyzrSearchRange(1,~outliersXY)',xyzrSearchRange(2,~outliersXY)'], r(~outliersXY), 'poly11','Robust','off');
+    [fR, ~, outR] = fit([xyzrSearchRange(1,~outliersXY)',xyzrSearchRange(2,~outliersXY)'], r(~outliersXY), 'poly11','Robust','off');
     % make sure that the rotation angles are divisible by the fine
     % rotation angle step size parameter
-    xyzrSearchRange(4,:) = fR(xyzrSearchRange(1,:)',xyzrSearchRange(2,:)')...
-        - mod(fR(xyzrSearchRange(2,:)',xyzrSearchRange(2,:)'),pRes.fineRotStepSz);
+    rFits = fR(xyzrSearchRange(1,:)',xyzrSearchRange(2,:)'); 
+    xyzrSearchRange(4,:) = round(rFits/pRes.fineRotStepSz) * pRes.fineRotStepSz);
 end
 %  plot(fR,[xx(:),yy(:)],fR(xx(:),yy(:)))
 
