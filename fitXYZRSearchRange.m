@@ -36,7 +36,8 @@ if ~isempty(z)
     [fZ, ~, outZ] = fit([xyzrSearchRange(1,~outliersXY)', xyzrSearchRange(2,~outliersXY)'], z(~outliersXY), 'loess','Robust','off');
     % round the fit values to the nearest integer so we can use them as neighborhood centers
     zFits = fZ(xyzrSearchRange(1,:),xyzrSearchRange(2,:))';
-    xyzrSearchRange(3,:) = round(zFits);
+    xyzrSearchRange(3,:) = max(min(round(zFits),max(pRes.whichSlices)),...
+                            min(pRes.whichSlices));
 end
 %  plot(fZ,[xx(:),yy(:)],fZ(xx(:),yy(:)))
 % if there are rs to fit, fit them, excluding the XY outliers

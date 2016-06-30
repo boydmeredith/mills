@@ -299,7 +299,7 @@ for ff = 1:length(pRes.whichFrames),
         fprintf('computing correlations in peak neighborhood for block %03i...\n',thisBlockNo);
         nn = 1;
         zEdgeFlag = true;
-        while zEdgeFlag 
+        while zEdgeFlag && ~isempty(thisZRangeToCheck)
             for zz = 1:length(thisZRangeToCheck)
                 thisSliceNo = thisZRangeToCheck(zz);
                 stackSlice = stack(:,:,thisSliceNo);
@@ -358,7 +358,6 @@ for ff = 1:length(pRes.whichFrames),
             end
             zEdgeFlag =  zTooSmall | zTooBig ;
             thisZRangeToCheck(~ismember(thisZRangeToCheck,pRes.whichSlices)) = [];
-            if isempty(thisZRangeToCheck), continue; end
             zRangeToKeep = sort([zRangeToKeep thisZRangeToCheck]);
         end
        
