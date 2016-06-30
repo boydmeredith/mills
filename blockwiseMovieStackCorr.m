@@ -77,7 +77,7 @@ addOptional(p, 'searchRangeYMargin', 10, @isnumeric);
 addOptional(p, 'minCorrOverlap', .8, @isnumeric);
 addOptional(p, 'nRSTD', 8)
 addOptional(p,'xRadiusMin',4,@isnumeric);
-addOptional(p,'yRadiusMin',4],@isnumeric);
+addOptional(p,'yRadiusMin',4,@isnumeric);
 
 addOptional(p, 'flagZNFromEdge', 2)
 addOptional(p, 'flagRNFromEdge', 2)
@@ -334,7 +334,7 @@ for ff = 1:length(pRes.whichFrames),
                 if strcmp(pRes.corrType,'double')
                     corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
                 else
-                    corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx) * intmax(pRes.corrType);
+                    corrValsToSave(storeInd) = cast(thisCorr(thisCorrXYToKeepIx) * double(intmax(pRes.corrType)), pRes.corrType);
                 end
                 
                 % increment index counter
@@ -366,35 +366,6 @@ for ff = 1:length(pRes.whichFrames),
             cPeak, zEdgeFlag | rEdgeFlag]';
         
         
-        % get the reference block from the peak location. this should
-        % probably be its own function
-        refBlockIndX = blkCtrInRefX - (bInf.width-1)/2 : blkCtrInRefX + (bInf.width-1)/2;
-        refBlockIndY = blkCtrInRefY - (bInf.height-1)/2 : blkCtrInRefY + (bInf.height-1)/2;
-        topPad = sum(refBlockIndY < 1);
-        bottomPad = sum(refBlockIndY > stackDim.height);
-        leftPad = sum(refBlockIndX < 1);
-        rightPad = sum(refBlockIndX > stackDim.width);
-        
-        refBlockIndY(refBlockIndY < 1 | refBlockIndY > stackDim.height) = [];
-        refBlockIndX(refBlockIndX < 1 | refBlockIndX > stackDim.width) = [];
-        
-        refBlock = stack(refBlockIndY, refBlockIndX, indZ(peakInd));
-        refBlock = padarray(refBlock, [topPad leftPad], 0, 'pre');
-        refBlock = padarray(refBlock, [bottomPad rightPad], 0, 'post');
-        
-        bestBlockRot = rotateAndSelectBlock(movieFrame, bInf, pRes.rotAngleFromInd(indR(peakInd)));
-        
-        % plot block-ref montage
-        montageGrid(1+(maxBHeight+3)*(blocki-1):...
-            (maxBHeight+3)*(blocki-1)+size(bestBlockRot,1),...
-            1+(2*maxBWidth+3)*(blockj-1):...
-            (2*maxBWidth+3)*(blockj-1)+2*size(bestBlockRot,2)) = [normalizeToZeroOne(bestBlockRot) normalizeToZeroOne(refBlock)];
-        
-        % plot block-ref diff
-        imagesc(polyval(polyfit(bestBlockRot(:),refBlock(:),1),bestBlockRot) - refBlock,'parent',diffPlotMat(blocki,blockj));
-        %imagesc(normalizeToZeroOne(bestBlockRot) - imhistmatch(normalizeToZeroOne(refBlock), normalizeToZeroOne(bestBlockRot)), 'parent',diffPlotMat(blocki,blockj));
-        set(diffPlotMat(blocki,blockj), 'XTick',[],'YTick',[]);
-        colormap(diffPlotMat(blocki,blockj), bone);
         
         
         
@@ -453,30 +424,17 @@ for ff = 1:length(pRes.whichFrames),
     end
     
     
-    % turn figures into gifs...
-    % montage image
-    set(0,'currentfigure',montageFig);
-    montageFigAx = cla;
-    imagesc(montageGrid,'parent', montageFigAx);
-    colormap(montageFigAx, 'bone');
-    set(montageFig, 'Position', [1, 1, 1577, 954]);
-    set(montageFigAx,'position',[.01 .01 .98 .98],'XTick',[],'YTick',[])
-    axis(montageFigAx, 'image');
-    
-    [montageGif, montageMap] = createGif(montageFig,ff, movieLength,montageGif,...
-        montageMap,fullfile(pRes.corrDir, pRes.montageGifName));
-    % difference image
-    [diffGif, diffMap] = createGif(diffFig,ff, movieLength,diffGif,...
-        diffMap,fullfile(pRes.corrDir, pRes.diffGifName));
+
     % all correlations with absolute peak marked
+    if ~isempty(pRes.allValsPeakGifName)
     [allValsPeakGif, allValsPeakMap] = createGif(allValsPeakFig,ff, movieLength,allValsPeakGif,...
         allValsPeakMap,fullfile(pRes.corrDir, pRes.allValsPeakGifName));
-    
+    end
     
     % save summary
     if ~isempty(pRes.summarySaveName)
         save(fullfile(pRes.corrDir, pRes.summarySaveName), 'xyzrcoPeak', 'blockLocations', ...
-            'rotAngleFromInd','stackPath','moviePath','analysisDate');
+            'rotAngleFromInd','stackPath','moviePath','analysisDate','pRes');
     end
     
 end
