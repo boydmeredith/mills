@@ -279,6 +279,7 @@ for ff = 1:length(pRes.whichFrames),
         
         zRangeToKeep = max(1,thisNbrhdCtrZ-ceil(thisNZToKeep/2)) : ...
             min(stackDim.depth,thisNbrhdCtrZ+ceil(thisNZToKeep/2));
+        thisZRangeToCheck = zRangeToKeep;
         
         rotToKeep = fineRotAngles + round(thisNbrhdCtrR,pRes.angleSigFig);
         rotToKeep = round(rotToKeep, pRes.angleSigFig);
@@ -297,53 +298,71 @@ for ff = 1:length(pRes.whichFrames),
         % Loop through the specified range of z values and angles
         fprintf('computing correlations in peak neighborhood for block %03i...\n',thisBlockNo);
         nn = 1;
-        for zz = 1:length(zRangeToKeep)
-            thisSliceNo = zRangeToKeep(zz);
-            stackSlice = stack(:,:,thisSliceNo);
-            for rr = rotToKeep
-                
-                % --- most important lines of the function! --- %
-                % rotate the block according to rr
-                blockRot = rotateAndSelectBlock(movieFrame, bInf, rr);
-                
-                % use find to get y and x indices as well as the values
-                % themselves
-                [yIx, xIx, thisCorr] = find(computeBlockImageCorrs(blockRot, ...
-                    stackSlice, nbrhdInf, pRes.minCorrOverlap, 'double'));
-                
-                % don't try to store correlations if we don't find any
-                %(bc we are using a uint and all correlations are <= 0)
-                if isempty(thisCorr), continue; end
-                % --------------------------------------------- %
-                
-                % get the indices of the top nXYToKeep correlations
-                [~, thisCorrSortIx] = sort(thisCorr,'descend');
-                
-                thisCorrXYToKeepIx  = thisCorrSortIx(1:min(length(thisCorr), pRes.nXYToKeep));
-                
-                % determine where to store these newly computed values
-                storeInd = nn:nn+length(thisCorrXYToKeepIx)-1;
-                
-                % store the x,y,z,r indices and the values themselves for the
-                % top nXYToKeep correlations
-                indX(storeInd) = uint16(xIx(thisCorrXYToKeepIx));
-                indY(storeInd) = uint16(yIx(thisCorrXYToKeepIx));
-                indZ(storeInd) = uint8(thisSliceNo);
-                indR(storeInd) = uint8(find(pRes.rotAngleFromInd == rr));
-                % convert correlations to desired type and store them
-                if strcmp(pRes.corrType,'double')
-                    corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
-                else
-                    corrValsToSave(storeInd) = cast(thisCorr(thisCorrXYToKeepIx) * double(intmax(pRes.corrType)), pRes.corrType);
+        zEdgeFlag = true;
+        while zEdgeFlag 
+            for zz = 1:length(thisZRangeToCheck)
+                thisSliceNo = thisZRangeToCheck(zz);
+                stackSlice = stack(:,:,thisSliceNo);
+                for rr = rotToKeep
+
+                    % --- most important lines of the function! --- %
+                    % rotate the block according to rr
+                    blockRot = rotateAndSelectBlock(movieFrame, bInf, rr);
+
+                    % use find to get y and x indices as well as the values
+                    % themselves
+                    [yIx, xIx, thisCorr] = find(computeBlockImageCorrs(blockRot, ...
+                        stackSlice, nbrhdInf, pRes.minCorrOverlap, 'double'));
+
+                    % don't try to store correlations if we don't find any
+                    %(bc we are using a uint and all correlations are <= 0)
+                    if isempty(thisCorr), continue; end
+                    % --------------------------------------------- %
+
+                    % get the indices of the top nXYToKeep correlations
+                    [~, thisCorrSortIx] = sort(thisCorr,'descend');
+
+                    thisCorrXYToKeepIx  = thisCorrSortIx(1:min(length(thisCorr), pRes.nXYToKeep));
+
+                    % determine where to store these newly computed values
+                    storeInd = nn:nn+length(thisCorrXYToKeepIx)-1;
+
+                    % store the x,y,z,r indices and the values themselves for the
+                    % top nXYToKeep correlations
+                    indX(storeInd) = uint16(xIx(thisCorrXYToKeepIx));
+                    indY(storeInd) = uint16(yIx(thisCorrXYToKeepIx));
+                    indZ(storeInd) = uint8(thisSliceNo);
+                    indR(storeInd) = uint8(find(pRes.rotAngleFromInd == rr));
+                    % convert correlations to desired type and store them
+                    if strcmp(pRes.corrType,'double')
+                        corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
+                    else
+                        corrValsToSave(storeInd) = cast(thisCorr(thisCorrXYToKeepIx) * double(intmax(pRes.corrType)), pRes.corrType);
+                    end
+
+                    % increment index counter
+                    nn = storeInd(end)+1;
                 end
-                
-                % increment index counter
-                nn = storeInd(end)+1;
             end
-        end
         
-        % get the overall peak for this block/frame
-        [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, pRes);
+        
+            % get the overall peak for this block/frame
+            [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, pRes);
+            % check to see if the best z match is too close to an edge
+            zTooSmall = find(zRangeToKeep==indZ(peakInd))-1 <= pRes.flagZNFromEdge;
+            zTooBig  = length(zRangeToKeep)-find(zRangeToKeep==indZ(peakInd)) <= pRes.flagZNFromEdge;
+            if zTooBig,
+                thisZRangeToCheck = zRangeToKeep(end) + (1:pRes.flagZNFromEdge);
+            elseif zTooSmall,
+                thisZRangeToCheck = zRangeToKeep(1) - (1:pRes.flagZNFromEdge);
+            end
+            zEdgeFlag =  zTooSmall | zTooBig ;
+            thisZRangeToCheck(~ismember(thisZRangeToCheck,pRes.whichSlices)) = [];
+            if isempty(thisZRangeToCheck), continue; end
+            zRangeToKeep = sort([zRangeToKeep thisZRangeToCheck]);
+        end
+       
+        
         % plot all of the saved correlations for this block/frame and mark
         % the overall peak
         plot(allValsPeakMat(blocki,blockj), 1:length(corrValsToSave), corrValsToSave,'-',...
@@ -352,62 +371,22 @@ for ff = 1:length(pRes.whichFrames),
         blkCtrInRefX  = double(indX(peakInd)) - (bInf.width-1)/2;
         blkCtrInRefY  = double(indY(peakInd)) - (bInf.height-1)/2;
         % flag best z and r values that are near edge of computed window
-        zEdgeFlag = find(zRangeToKeep==indZ(peakInd))-1 <= pRes.flagZNFromEdge | ...
-            length(zRangeToKeep)-find(zRangeToKeep==indZ(peakInd)) <= pRes.flagZNFromEdge;
         rEdgeFlag = indR(peakInd)-find(pRes.rotAngleFromInd==rotToKeep(1)) <= pRes.flagRNFromEdge | ...
             find(pRes.rotAngleFromInd==rotToKeep(end))-indR(peakInd) <= pRes.flagRNFromEdge;
         
-        % save absolute peak and 
+        % save absolute peak  
         if ~strcmp(pRes.corrType,'double'), 
             cPeak = double(cPeak)/double(intmax(pRes.corrType)); 
         end
         xyzrcoPeak(:,thisBlockNo, thisFrameNo) = [blkCtrInRefX, blkCtrInRefY, ...
             double(indZ(peakInd)), pRes.rotAngleFromInd(indR(peakInd)),...
             cPeak, zEdgeFlag | rEdgeFlag]';
-        
-        
-        
-        
-        
-        
-        % % TODO: make two separate functions for pair plots and block
-        % znbrhds
-        % pair plots
-        % %         createPairsPlot(pairsFigNo, peakInd, indX, indY, indZ, indR, ...
-        % %             double(corrValsToSave)./double(intmax(pRes.corrType)),...
-        % %             frameString, [.2 .9]);
-        % %         [pairsGif, pairsMap]  = createGif(pairsFigNo, ff, movieLength, ...
-        % %             pairsGif, pairsMap, fullfile(pRes.frameCorrDir, fprintf(pRes.pairsGifName,thisBlockNo)));
-        %         % block Z neighbordhood report
-        %     [~, blockZNbrhdPlotMat] = makeSubplots(blockZNbrhdFigNo, 4, 7, .1, .1, [ 0 0 1 1]);
-        
-        %         blockZNbrhdGif = []; blockZNbrhdMap = [];
-        %         zNbrhdToPlot = indZ(peakInd)-3:indZ(peakInd)+3;
-        %         for zz = 1:length(zNbrhdToPlot)
-        %             thisZ = zNbrhdToPlot(zz);
-        %             if thisZ < 1 | thisZ > stackDim.depth, continue; end
-        %             axes(blockZNbrhdPlotMat(zz,1));
-        %             imagesc(refBlock); colormap bone; freezeColors; axis image
-        %             ylabel(sprintf('z = %i', thisZ));
-        %             axes(blockZNbrhdPlotMat(zz,2));
-        %             imagesc(blockRot); colormap bone; freezeColors; axis image
-        %             axes(blockZNbrhdPlotMat(zz,3));
-        %             imshowpair(refBlock, blockRot); colormap bone; freezeColors; axis image
-        %             axes(blockZNbrhdPlotMat(zz,4));
-        %
-        %         end
-        %         [blockZNbrhdGif, blockZNbrhdMap] = createGif(blockZNbrhdFigNo,ff, movieLength,...
-        %             blockZNbrhdGif,blockZNbrhdMap,fullfile(pRes.corrDir,blockZNbrhdGifName));
-        
-        % save block
+
         if ~isempty(pRes.blockSaveFormat)
             save(fullfile(pRes.frameCorrDir, sprintf(pRes.blockSaveFormat,thisBlockNo)), ...
                 'corrValsToSave', 'indX', 'indY', 'indZ', 'indR', 'analysisDate', ...
                 'stackPath','rotAngleFromInd','thisBlockLoc');
         end
-        
-        
-        
     end
     
     % update the search range for the next frame and keep track of the
