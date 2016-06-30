@@ -120,7 +120,7 @@ set(0, 'DefaultFigureVisible', pRes.showFigs);
 close all;
 
 ballStickGif   = []; ballStickMap   = [];
-%diffGif  = []; diffMap  = []; diffFigNo = 4;
+diffGif  = []; diffMap  = []; diffFigNo = 4;
 montageGif  = []; montageMap  = [];
 allValsPeakGif = []; allValsPeakMap = [];
 
@@ -217,10 +217,7 @@ if isempty(pRes.whichSlices), pRes.whichSlices = 1:stackDim.depth; end
 % (used to create a margin)
 blockLocations = makeBlockLocations(movieHeight, movieWidth, ...
     pRes.nBlockSpan, pRes.blockOverlap, max(pRes.coarseRotAngles));
-maxBWidth = max(max(sum(blockLocations,2),[],1));
-maxBHeight = max(max(sum(blockLocations,1),[],2));
-montageGrid = zeros(( maxBHeight + 3) * pRes.nBlockSpan, ...
-    pRes.nBlockSpan * (3+ maxBWidth));
+
 
 % initialize matrix to store peak of correlations
 xyzrcoPeak = zeros(6,nBlocks,movieLength);
@@ -243,12 +240,11 @@ for ff = 1:length(pRes.whichFrames),
     end
     
     clf(diffFig); clf(allValsPeakFig)
-    [~, diffPlotMat]  = makeSubplots(diffFig,sqrt(nBlocks),sqrt(nBlocks),.1,.1,[ 0 0 1 1]);
     [~, allValsPeakMat]  = makeSubplots(allValsPeakFig,sqrt(nBlocks),sqrt(nBlocks),.1,.1,[ 0 0 1 1]);
     
     
     if ff == 1
-        [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, pRes);
+        [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocations, stack, pRes);
     end
     
     % ----------------- iterate through the blocks to keep values ------------------- %
@@ -275,8 +271,14 @@ for ff = 1:length(pRes.whichFrames),
         thisNbrhdCtrZ = xyzrSearchRange(3,thisBlockNo);
         thisNbrhdCtrR = xyzrSearchRange(4,thisBlockNo);
         
-        zRangeToKeep = max(1,thisNbrhdCtrZ-ceil(pRes.nZToKeep/2)) : ...
-            min(stackDim.depth,thisNbrhdCtrZ+ceil(pRes.nZToKeep/2));
+        if outliersXY(thisBlockNo),
+            thisNZToKeep = pRes.nZToKeepOutlier;
+        else
+            thisNZToKeep = pRes.nZToKeepInlier;
+        end
+        
+        zRangeToKeep = max(1,thisNbrhdCtrZ-ceil(thisNZToKeep/2)) : ...
+            min(stackDim.depth,thisNbrhdCtrZ+ceil(thisNZToKeep/2));
         
         rotToKeep = fineRotAngles + round(thisNbrhdCtrR,pRes.angleSigFig);
         rotToKeep = round(rotToKeep, pRes.angleSigFig);
@@ -285,7 +287,7 @@ for ff = 1:length(pRes.whichFrames),
         
         
         % create indices for x y z r to keep
-        nInd = pRes.nZToKeep * length(rotToKeep) * pRes.nXYToKeep;
+        nInd = thisNZToKeep * length(rotToKeep) * pRes.nXYToKeep;
         indZ = zeros(nInd,1,'uint8');
         indR = zeros(nInd,1,'uint8');
         indX = zeros(nInd,1,'uint16');
@@ -546,7 +548,7 @@ end
 end
 
 
-function [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, pRes)
+function [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocations, stack, pRes)
 % function [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, pRes)
 
 if isempty(pRes.searchRangeXMargin) || isempty(pRes.searchRangeYMargin)
@@ -569,9 +571,11 @@ if pRes.useSavedSearchRange
             & p.pRes.inferZWindow == pRes.inferZWindow & (p.pRes.zFitPower == pRes.zFitPower | pRes.zSearchRangeUseFit == 0) ...
             & p.pRes.zSearchRangeUseFit == pRes.zSearchRangeUseFit &   (p.pRes.rFitPower == pRes.rFitPower | pRes.rSearchRangeUseFit == 0)...
             & p.pRes.rSearchRangeUseFit == pRes.rSearchRangeUseFit & isequal(p.pRes.coarseRotAngles,pRes.coarseRotAngles) ...
-            & isequal(p.pRes.rotAngleFromInd,pRes.rotAngleFromInd));
-        if hasSameParams || pRes.useSavedSearchRangeEitherWay
+            & isequal(p.pRes.rotAngleFromInd,pRes.rotAngleFromInd) & pRes.nRSTD==p.pRes.nRSTD & pRes.xRadiusMin==p.pRes.xRadiusMin & ...
+            pRes.yRadiusMin==p.pRes.yRadiusMin);
+        if (hasSameParams || pRes.useSavedSearchRangeEitherWay) && isfield(p,'xyzrSearchRange') && isfield(p,'outliersXY')
             xyzrSearchRange = p.xyzrSearchRange;
+            outliersXY      = p.outliersXY;
             return
         else
             fprintf('Parameters did not match previously computed searchRange. Recomputing...');
@@ -687,7 +691,7 @@ if pRes.zSearchRangeUseFit
 else
     zIn = bestZData;
 end
-[xyzSearchRange, outliersXYNoRot] = fitXYZRSearchRange(bestXCtrData,bestYCtrData,zIn,[],pRes);
+[xyzSearchRange, outliersXY] = fitXYZRSearchRange(bestXCtrData,bestYCtrData,zIn,[],pRes);
 
 % ------------ get initial rotation angle estimate for each block --------------- %
 fprintf('getting initial searchRange on r for all blocks...\n');
@@ -789,7 +793,7 @@ end
     xyzSearchRange(3,:),rIn,pRes,true);
 
 
-save(searchRangePath, 'xyzrSearchRange','pRes')
+save(searchRangePath, 'xyzrSearchRange','pRes','outliersXY')
 
 end
 
