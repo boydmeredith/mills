@@ -5,25 +5,31 @@ function [corrValsToSave, xyzrcLocation] = blockwiseMovieStackCorr(subj, movieNa
 p = inputParser;
 
 addOptional(p,'corrType', 'uint16', @(x) ismember(x,{'uint8','uint16','uint32','uint64','double'}));
-addOptional(p,'nBlockSpan',10,@(x) isnumeric(x) & ~mod(x,1));
+addOptional(p,'nBlockSpan',6,@(x) isnumeric(x) & ~mod(x,1));
 %addOptional(p,'mBlocks',6,@(x) isnumeric(x) & ~mod(x,1));
 %addOptional(p,'nBlocks',6,@(x) isnumeric(x) & ~mod(x,1));
-addOptional(p,'blockOverlap',.2,@(x) ispositive(x) & isnumeric(x));
-%addOptional(p,'blockOverlap',10,@(x) ispositive(x) & isnumeric(x));
+%addOptional(p,'blockOverlap',.2,@(x) ispositive(x) & isnumeric(x));
+addOptional(p,'blockOverlap',10,@(x) ispositive(x) & isnumeric(x));
 
 addOptional(p,'coarseRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'coarseRotWindowRange',20, @(x) ispositive(x) & isnumeric(x));
-addOptional(p,'fineRotStepSz',.1, @(x) ispositive(x) & isnumeric(x));
-%addOptional(p,'fineRotStepSz',.25, @(x) ispositive(x) & isnumeric(x));
-addOptional(p,'fineRotWindowRange',4, @(x) ispositive(x) & isnumeric(x));
+%addOptional(p,'fineRotStepSz',.1, @(x) ispositive(x) & isnumeric(x));
+addOptional(p,'fineRotStepSz',.25, @(x) ispositive(x) & isnumeric(x));
+addOptional(p,'fineRotWindowRange',6, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'nXYToKeep', 400, @(x) isnumeric(x) & ~mod(x,1));
-addOptional(p,'nZToKeep', 11, @(x) isnumeric(x) & mod(x,2) == 1);
-addOptional(p,'zFitPower',5,@(x) isnumeric(x) & ~mod(x,1));
-%addOptional(p,'angleSigFig',2,@(x) isnumeric(x) & ~mod(x,1));
-addOptional(p,'angleSigFig',1,@(x) isnumeric(x) & ~mod(x,1));
 
-addOptional(p,'rFitPower',4,@(x) isnumeric & ~mod(x,1));
+addOptional(p,'nZToKeepInlier', 11, @(x) isnumeric(x) & mod(x,2) == 1);
+addOptional(p,'nZToKeepOutlier', 21, @(x) isnumeric(x) & mod(x,2) == 1);
+
+%addOptional(p,'angleSigFig',2,@(x) isnumeric(x) & ~mod(x,1));
+addOptional(p,'angleSigFig',2,@(x) isnumeric(x) & ~mod(x,1));
+
+% inferZWindow is only relevant if useZFit
 addOptional(p,'inferZWindow',100,@(x) isnumeric & ~mod(x,1));
+addOptional(p, 'zSearchRangeUseFit', false, @islogical)
+addOptional(p, 'rSearchRangeUseFit', false, @islogical)
+addOptional(p,'zFitPower',5,@(x) isnumeric(x) & ~mod(x,1));
+addOptional(p,'rFitPower',4,@(x) isnumeric & ~mod(x,1));
 
 
 addOptional(p,'whichBlocks', [],@isnumeric);
@@ -58,8 +64,6 @@ addOptional(p, 'allValsPeakGifName', 'allValsPeak.gif');
 
 addOptional(p, 'searchRangeFigName','searchRangeFig.pdf');
 
-addOptional(p, 'zSearchRangeUseFit', false, @islogical)
-addOptional(p, 'rSearchRangeUseFit', false, @islogical)
 
 addOptional(p,'showFigs','off',@(x) any(strcmp({'on','off'},x)));
 
@@ -72,9 +76,11 @@ addOptional(p, 'searchRangeXMargin', 10, @isnumeric);
 addOptional(p, 'searchRangeYMargin', 10, @isnumeric);
 addOptional(p, 'minCorrOverlap', .8, @isnumeric);
 addOptional(p, 'nRSTD', 8)
+addOptional(p,'xRadiusMin',4,@isnumeric);
+addOptional(p,'yRadiusMin',4],@isnumeric);
 
-addOptional(p, 'flagZNFromEdge', 3)
-addOptional(p, 'flagRNFromEdge', 3)
+addOptional(p, 'flagZNFromEdge', 2)
+addOptional(p, 'flagRNFromEdge', 2)
 
 
 
