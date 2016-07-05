@@ -1,4 +1,4 @@
-function [corrValsToSave, xyzrcLocation] = blockwiseMovieStackCorr(subj, movieDate, varargin)
+function [corrValsToSave, xyzrcoPeak] = blockwiseMovieStackCorr(subj, movieDate, varargin)
 
 % ---------- parse optional inputs ---------- %
 %
@@ -6,7 +6,7 @@ p = inputParser;
 
 addOptional(p, 'location','L01');
 
-addOptional(p, 'stackFname', []);
+addOptional(p, 'stackDate', []);
 
 addOptional(p,'corrType', 'uint16', @(x) ismember(x,{'uint8','uint16','uint32','uint64','double'}));
 addOptional(p,'mByNBlocks',[6 6],@(x) isnumeric(x) & ~mod(x,1));
@@ -51,7 +51,7 @@ addOptional(p,'reportDimPairs',true,@islogical);
 addOptional(p,'loadedStack',[],@isnumeric);
 addOptional(p,'loadedMovie',[],@isnumeric);
 
-addOptional(p,'dataDir','/Volumes/tank/jlgauthi/Data',@isdir);
+addOptional(p,'dataDir',[],@(x) isdir(x) | isempty(x));
 
 addOptional(p,'summarySaveName', 'summary.mat',@isstr);
 addOptional(p,'blockSaveFormat', 'block%03i.mat',@isstr);
@@ -108,6 +108,9 @@ clear p;
 
 params.subj = subj;
 params.movieDate = movieDate;
+if isempty(params.dataDir)
+    params.dataDir = jlgDataDir;
+end
 
 
 
@@ -170,28 +173,30 @@ assert(length(params.rotAngleFromInd) <= 255); % make sure that we can represent
 % load stack (expect gif)
 movieFname = sprintf('%s__%s__AVERAGE.tif',movieDate,params.location);
 if isempty(params.referenceName),
-    params.stackFname = sprintf('reference_stack_%s.tif', defaultStackDate(subj));
+    params.stackDate =  defaultStackDate(subj);
 end
-stackPath = fullfile(params.dataDir, subj, stackName);
-moviePath = fullfile(params.dataDir, subj, movieFname);
-assert(exist(moviePath,'file') & exist(stackPath,'file'));
+stackPath = fullfile(subj, sprintf('reference_stack_%s.tif',params.stackDate));
+fullStackPath = fullfile(params.dataDir, stackPath);
+moviePath = fullfile(subj, movieFname);
+fullMoviePath = fullfile(params.dataDir, moviePath);
+assert(exist(fullMoviePath,'file') & exist(fullStackPath,'file'));
 
-stackInf  = imfinfo(stackPath);
+stackInf  = imfinfo(fullStackPath);
 stackDim.depth = length(stackInf);
 
 if ~isempty(params.loadedStack)
     stack = params.loadedStack;
 else
     stack = zeros(stackInf(1).Height,stackInf(1).Width,stackDim.depth);
-    for ss = 1:length(imfinfo(stackPath))
-        stack(:,:,ss) = imread(stackPath,ss);
+    for ss = 1:length(imfinfo(fullStackPath))
+        stack(:,:,ss) = imread(fullStackPath,ss);
     end
 end
 rmfield(params,'loadedStack');
 
 % load movie (expect gif)
 
-movieInf = imfinfo(moviePath);
+movieInf = imfinfo(fullMoviePath);
 movieHeight = movieInf(1).Height;
 movieWidth  = movieInf(1).Width;
 movieLength = length(movieInf);
@@ -200,8 +205,8 @@ if ~isempty(params.loadedMovie)
     movie = params.loadedMovie;
 else
     movie = zeros(movieHeight,movieWidth,movieLength);
-    for mm = 1:length(imfinfo(moviePath))
-        movie(:,:,mm) = imread(moviePath,mm);
+    for mm = 1:length(imfinfo(fullMoviePath))
+        movie(:,:,mm) = imread(fullMoviePath,mm);
     end
 end
 rmfield(params,'loadedMovie');
@@ -216,7 +221,7 @@ stack = cropStack(stack);
 [stackDim.height, stackDim.width, stackDim.depth] = size(stack);
 
 % create correlations directory
-assert(moviePath(end-3)=='.');
+assert(fullMoviePath(end-3)=='.');
 movieDate = movieFname(1:10);
 movieDateDir = fullfile(params.dataDir, subj, movieDate);
 params.corrDir = fullfile(movieDateDir, 'referenceLocalization');

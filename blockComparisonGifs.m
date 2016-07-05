@@ -1,25 +1,17 @@
 function [montageGif, diffGif, overlapGif] = blockComparisonGifs(subj, movieDate)
 
-useJukebox = exist('/jukebox','dir');
-if useJukebox, 
-    dataDir = '/jukebox/tank/jlgauthi/Data/';
-else
-    dataDir = '/Volumes/tank/jlgauthi/Data/';
-end
+
 
 % load peak locations and other useful information
-movieDateDir = fullfile(dataDir, subj, movieDate);
+movieDateDir = fullfile(jlgDataDir, subj, movieDate);
 
 corrDir = fullfile(movieDateDir, 'referenceLocalization');
 load(fullfile(corrDir,'summary.mat'),'xyzrcoPeak','blockLocations','stackPath','params');
 if ~exist('params','var'),
     load(fullfile(corrDir,'xyzrSearchRange.mat'),'params');
 end
-if useJukebox,
-    stackPath = strrep(stackPath,'Volumes','jukebox');
-else
-    stackPath = strrep(stackPath,'jukebox','Volumes');
-end
+
+stackPath = fullfile(jlgDataDir, stackPath);
 
 [~, nBlocks, nFrames] = size(xyzrcoPeak);
 

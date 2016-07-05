@@ -12,22 +12,13 @@ function [pairsPlot] = createPairsPlot(subj, movieDate, blockNo, frameNo)
 
 figTitle = sprintf('%s %s block: %03d frame %03d', subj, movieDate, blockNo, frameNo);
 
-if exist('/jukebox')
-    jlgDataDir = '/jukebox/tank/jlgauthi/Data';
-else
-    jlgDataDir = '/Volumes/tank/jlgauthi/Data';
-end
-
 blockPath = fullfile(jlgDataDir, subj, movieDate,...
     sprintf('referenceLocalization/frame%03d/block%03d.mat', frameNo, blockNo));
 
 blockSt = load(blockPath);
 
-if exist('/jukebox')
-    refinfo = imfinfo(strrep(blockSt.stackPath, 'Volumes','jukebox'));
-else
-    refinfo = imfinfo(strrep(blockSt.stackPath, 'jukebox','Volumes'));
-end
+refinfo = imfinfo(fullfile(jlgDataDi, blockSt.stackPath));
+
 refDepth = length(refinfo);
 refHeight = refinfo(1).Height;
 refWidth = refinfo(1).Width;
