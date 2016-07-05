@@ -137,7 +137,8 @@ if ~isempty(pRes.allValsPeakGifName)
     allValsPeakFig = figure('Visible',pRes.showFigs);
 end
 
-analysisDate = datestr(today);
+dateStr = datestr(now);
+dateNum = datenum(now);
 
 % assemble some variables based on optional input parameters
 pRes.coarseRotAngles  = -(pRes.coarseRotWindowRange/2):pRes.coarseRotStepSz:(pRes.coarseRotWindowRange/2);
@@ -412,7 +413,7 @@ for ff = 1:length(pRes.whichFrames),
     % save summary
     if ~isempty(pRes.summarySaveName)
         save(fullfile(pRes.corrDir, pRes.summarySaveName), 'xyzrcoPeak', 'blockLocations', ...
-            'rotAngleFromInd','stackPath','moviePath','analysisDate','pRes');
+            'rotAngleFromInd','stackPath','moviePath','dateStr', 'dateNum','pRes');
     end
     
 end
