@@ -11,9 +11,9 @@ end
 movieDateDir = fullfile(dataDir, subj, movieDate);
 
 corrDir = fullfile(movieDateDir, 'referenceLocalization');
-load(fullfile(corrDir,'summary.mat'),'xyzrcoPeak','blockLocations','stackPath','pRes');
-if ~exist('pRes','var'),
-    load(fullfile(corrDir,'xyzrSearchRange.mat'),'pRes');
+load(fullfile(corrDir,'summary.mat'),'xyzrcoPeak','blockLocations','stackPath','params');
+if ~exist('params','var'),
+    load(fullfile(corrDir,'xyzrSearchRange.mat'),'params');
 end
 if useJukebox,
     stackPath = strrep(stackPath,'Volumes','jukebox');
@@ -45,8 +45,8 @@ stack = cropStack(stack);
 % set up a grid for the montage figure and init some figures
 maxBWidth = max(max(sum(blockLocations,2),[],1));
 maxBHeight = max(max(sum(blockLocations,1),[],2));
-montageGrid = zeros(( maxBHeight + 3) * pRes.nBlockSpan, ...
-    2*pRes.nBlockSpan * (3+ maxBWidth));
+montageGrid = zeros(( maxBHeight + 3) * params.nBlockSpan, ...
+    2*params.nBlockSpan * (3+ maxBWidth));
 montageFig = figure;
 diffFig = figure;
 overlapFig = figure;
