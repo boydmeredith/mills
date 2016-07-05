@@ -1,8 +1,12 @@
-function [corrValsToSave, xyzrcLocation] = blockwiseMovieStackCorr(subj, movieName, stackName, varargin)
+function [corrValsToSave, xyzrcLocation] = blockwiseMovieStackCorr(subj, movieDate, varargin)
 
 % ---------- parse optional inputs ---------- %
 %
 p = inputParser;
+
+addOptional(p, 'location','L01');
+
+addOptional(p, 'stackFname', []);
 
 addOptional(p,'corrType', 'uint16', @(x) ismember(x,{'uint8','uint16','uint32','uint64','double'}));
 addOptional(p,'mByNBlocks',[6 6],@(x) isnumeric(x) & ~mod(x,1));
@@ -63,6 +67,7 @@ addOptional(p, 'allValsPeakGifName', 'allValsPeak.gif');
 addOptional(p, 'searchRangeFigName','searchRangeFig.pdf');
 
 
+
 addOptional(p,'showFigs','off',@(x) any(strcmp({'on','off'},x)));
 
 addOptional(p, 'xyzrSearchRangeSaveName','xyzrSearchRange.mat',@isstr)
@@ -90,7 +95,7 @@ parse(p,varargin{:})
 % ----------------------------------------- %
 
 
-fprintf('\nstarting registration for subj: %s on movie: %s \n',subj, movieName);
+fprintf('\nstarting registration for subj: %s on movie: %s \n',subj, movieFname);
 % reassign p.Results to paramsults and get rid of p so it is easier to manage
 % subfields
 if ~isempty(fields(p.Unmatched))
@@ -100,6 +105,9 @@ params = p.Results;
 clear p;
 
 %parpool;
+
+params.subj = subj;
+params.movieDate = movieDate;
 
 
 
@@ -160,8 +168,12 @@ assert(length(params.rotAngleFromInd) <= 255); % make sure that we can represent
 
 
 % load stack (expect gif)
+movieFname = sprintf('%s__%s__AVERAGE.tif',movieDate,params.location);
+if isempty(params.referenceName),
+    params.stackFname = sprintf('reference_stack_%s.tif', defaultStackDate(subj));
+end
 stackPath = fullfile(params.dataDir, subj, stackName);
-moviePath = fullfile(params.dataDir, subj, movieName);
+moviePath = fullfile(params.dataDir, subj, movieFname);
 assert(exist(moviePath,'file') & exist(stackPath,'file'));
 
 stackInf  = imfinfo(stackPath);
@@ -205,7 +217,7 @@ stack = cropStack(stack);
 
 % create correlations directory
 assert(moviePath(end-3)=='.');
-movieDate = movieName(1:10);
+movieDate = movieFname(1:10);
 movieDateDir = fullfile(params.dataDir, subj, movieDate);
 params.corrDir = fullfile(movieDateDir, 'referenceLocalization');
 
