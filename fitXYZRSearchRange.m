@@ -15,12 +15,12 @@ function [xyzrSearchRange, outliersXY] = fitXYZRSearchRange(x,y,z,r,params,doMak
 if nargin < 6, doMakePlot = false; end;
 if nargin < 7, doSavePlot = true; end;
 
-xyzrSearchRange = nan(4,params.nBlockSpan^2);
+xyzrSearchRange = nan(4,params.nBlocks);
 % create a grid of block i,j indices
-[xx, yy] = meshgrid(1:params.nBlockSpan,1:params.nBlockSpan);
+[xx, yy] = meshgrid(1:params.mByNBlocks(2),1:params.mByNBlocks(1));
 % robustly fit xs and ys to plane
-[fX, ~, outX]  = fit([xx(:), yy(:)], reshape(x, params.nBlockSpan^2, 1), 'poly11','Robust','Bisquare');
-[fY, ~, outY]  = fit([xx(:), yy(:)], reshape(y, params.nBlockSpan^2, 1), 'poly11','Robust','Bisquare');
+[fX, ~, outX]  = fit([xx(:), yy(:)], reshape(x, params.nBlocks, 1), 'poly11','Robust','Bisquare');
+[fY, ~, outY]  = fit([xx(:), yy(:)], reshape(y, params.nBlocks, 1), 'poly11','Robust','Bisquare');
 % find x and y outliers
 xOutRadius = max(params.nRSTD*robustSTD(outX.residuals),params.xRadiusMin) ;
 yOutRadius = max(params.nRSTD*robustSTD(outY.residuals),params.yRadiusMin) ;
@@ -32,7 +32,7 @@ xyzrSearchRange(1,:) = fX(xx(:),yy(:));
 xyzrSearchRange(2,:) = fY(xx(:),yy(:));
 % if there are zs to fit, fit them, excluding the XY outliers
 if ~isempty(z)
-    z = reshape(z, params.nBlockSpan^2, 1);
+    z = reshape(z, params.nBlocks, 1);
     [fZ, ~, outZ] = fit([xyzrSearchRange(1,~outliersXY)', xyzrSearchRange(2,~outliersXY)'], z(~outliersXY), 'loess','Robust','off');
     % round the fit values to the nearest integer so we can use them as neighborhood centers
     zFits = fZ(xyzrSearchRange(1,:),xyzrSearchRange(2,:))';
@@ -42,7 +42,7 @@ end
 %  plot(fZ,[xx(:),yy(:)],fZ(xx(:),yy(:)))
 % if there are rs to fit, fit them, excluding the XY outliers
 if ~isempty(r)
-    r = reshape(r, params.nBlockSpan^2, 1);
+    r = reshape(r, params.nBlocks, 1);
     [fR, ~, outR] = fit([xyzrSearchRange(1,~outliersXY)',xyzrSearchRange(2,~outliersXY)'], r(~outliersXY), 'poly11','Robust','off');
     % make sure that the rotation angles are divisible by the fine
     % rotation angle step size parameter
@@ -59,12 +59,12 @@ if ~isempty(params.searchRangeFigName) && doMakePlot
     [surfP, surfM]      = makeSubplots(searchRangeFig, 1, 2, .2, 0, [.6 0 .4 1]);
     colormap(searchRangeFig, colormapRedBlue);
     
-    imagesc([reshape(x,params.nBlockSpan,params.nBlockSpan)...
-        reshape(xyzrSearchRange(1,:),params.nBlockSpan,params.nBlockSpan)],'parent',flatM(1,1));
+    imagesc([reshape(x,params.mByNBlocks(1),params.mByNBlocks(2))...
+        reshape(xyzrSearchRange(1,:),params.mByNBlocks(1),params.mByNBlocks(2))],'parent',flatM(1,1));
     title(flatM(1,1),'X');     colorbar('peer',flatM(1,1))
     axis(flatM(1,1),'image');
     
-    imagesc(reshape(outliersX,params.nBlockSpan,params.nBlockSpan),'parent',flatM(2,1));
+    imagesc(reshape(outliersX,params.mByNBlocks(1),params.mByNBlocks(2)),'parent',flatM(2,1));
     axis(flatM(2,1),'image');
     title(flatM(2,1),'X outliers')
     
@@ -74,12 +74,12 @@ if ~isempty(params.searchRangeFigName) && doMakePlot
         -[xOutRadius xOutRadius],get(flatM(3,1),'ylim'),'r')
     set(flatM(3,1),'ycolor','w','tickdir','out');box(flatM(3,1),'off');title(flatM(3,1),'X fit residuals')
     
-    imagesc([reshape(y,params.nBlockSpan,params.nBlockSpan)...
-        reshape(xyzrSearchRange(2,:),params.nBlockSpan,params.nBlockSpan)],'parent',flatM(1,2));
+    imagesc([reshape(y,params.mByNBlocks(1),params.mByNBlocks(2))...
+        reshape(xyzrSearchRange(2,:),params.mByNBlocks(1),params.mByNBlocks(2))],'parent',flatM(1,2));
     title(flatM(1,2),'Y'); colorbar('peer',flatM(1,2))
     axis(flatM(1,2),'image');
     
-    imagesc(reshape(outliersY,params.nBlockSpan,params.nBlockSpan),'parent',flatM(2,2));
+    imagesc(reshape(outliersY,params.mByNBlocks(1),params.mByNBlocks(2)),'parent',flatM(2,2));
     axis(flatM(2,2),'image');
     title(flatM(2,2),'Y outliers')
     title(flatM(1,2),'X outliers')
@@ -92,13 +92,13 @@ if ~isempty(params.searchRangeFigName) && doMakePlot
     set(flatM(3,2),'ycolor','w','tickdir','out');box(flatM(3,2),'off');title(flatM(3,2),'Y fit residuals')
     
     
-    imagesc([reshape(z,params.nBlockSpan,params.nBlockSpan)...
-        reshape(xyzrSearchRange(3,:),params.nBlockSpan,params.nBlockSpan)],'parent',flatM(4,1));
+    imagesc([reshape(z,params.mByNBlocks(1),params.mByNBlocks(2))...
+        reshape(xyzrSearchRange(3,:),params.mByNBlocks(1),params.mByNBlocks(2))],'parent',flatM(4,1));
     title(flatM(4,1),'Z'); colorbar('peer',flatM(4,1))
     axis(flatM(4,1),'image');
     
-    imagesc([reshape(r,params.nBlockSpan,params.nBlockSpan)...
-        reshape(xyzrSearchRange(4,:),params.nBlockSpan,params.nBlockSpan)],'parent',flatM(4,2));
+    imagesc([reshape(r,params.mByNBlocks(1),params.mByNBlocks(2))...
+        reshape(xyzrSearchRange(4,:),params.mByNBlocks(1),params.mByNBlocks(2))],'parent',flatM(4,2));
     title(flatM(4,2),'R'); colorbar('peer',flatM(4,2))
     axis(flatM(4,2),'image');
     

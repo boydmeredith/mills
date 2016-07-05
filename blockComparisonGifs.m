@@ -45,8 +45,8 @@ stack = cropStack(stack);
 % set up a grid for the montage figure and init some figures
 maxBWidth = max(max(sum(blockLocations,2),[],1));
 maxBHeight = max(max(sum(blockLocations,1),[],2));
-montageGrid = zeros(( maxBHeight + 3) * params.nBlockSpan, ...
-    2*params.nBlockSpan * (3+ maxBWidth));
+montageGrid = zeros(( maxBHeight + 3) * params.mByNBlocks(1), ...
+    2*params.mByNBlocks(2) * (3+ maxBWidth));
 montageFig = figure;
 diffFig = figure;
 overlapFig = figure;

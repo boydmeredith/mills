@@ -5,9 +5,7 @@ function [corrValsToSave, xyzrcLocation] = blockwiseMovieStackCorr(subj, movieNa
 p = inputParser;
 
 addOptional(p,'corrType', 'uint16', @(x) ismember(x,{'uint8','uint16','uint32','uint64','double'}));
-addOptional(p,'nBlockSpan',6,@(x) isnumeric(x) & ~mod(x,1));
-%addOptional(p,'mBlocks',6,@(x) isnumeric(x) & ~mod(x,1));
-%addOptional(p,'nBlocks',6,@(x) isnumeric(x) & ~mod(x,1));
+addOptional(p,'mByNBlocks',[6 6],@(x) isnumeric(x) & ~mod(x,1));
 %addOptional(p,'blockOverlap',.2,@(x) ispositive(x) & isnumeric(x));
 addOptional(p,'blockOverlap',10,@(x) ispositive(x) & isnumeric(x));
 
@@ -111,6 +109,10 @@ else
     nbrhdInf = struct('xMargin', params.nbrhdXMargin, 'yMargin', params.nbrhdYMargin);
 end
 
+% if only one number is given for mByNBlocks, repeat it for both dimensions
+if size(params.mByNBlocks) == 1, params.mByNBlocks = repmat(params.mByNBlocks, 1, 2); end
+params.nBlocks = prod(params.mByNBlocks);
+
 if (params.nbrhdYMargin+1)*2 * (params.nbrhdXMargin+1)*2 < params.nXYToKeep,
     params.nXYToKeep = (params.nbrhdYMargin+1)*2 * (params.nbrhdXMargin+1)*2;
 end
@@ -146,14 +148,16 @@ params.coarseRotAngles = round(params.coarseRotAngles, params.angleSigFig);
 % remove instances of coarseRotAngle == 0 because this will have higher
 % correlation than the other angles and screw up our fit
 params.coarseRotAngles(params.coarseRotAngles == 0) = [];
-fineRotAngles        = -(params.fineRotWindowRange/2):params.fineRotStepSz:(params.fineRotWindowRange/2);
-fineRotAngles        = round(fineRotAngles, params.angleSigFig);
-rotAngleFromInd      = params.coarseRotAngles(1):params.fineRotStepSz:params.coarseRotAngles(end);
-rotAngleFromInd      = round(rotAngleFromInd, params.angleSigFig);
+fineRotAngles          = -(params.fineRotWindowRange/2): params.fineRotStepSz ...
+                                        :(params.fineRotWindowRange/2);
+fineRotAngles          = round(fineRotAngles, params.angleSigFig);
+rotAngleFromInd        = params.coarseRotAngles(1):params.fineRotStepSz ... 
+                                        :params.coarseRotAngles(end);
+rotAngleFromInd        = round(rotAngleFromInd, params.angleSigFig);
 params.rotAngleFromInd = rotAngleFromInd;
 assert(length(params.rotAngleFromInd) <= 255); % make sure that we can represent rotation with uint8
 
-nBlocks = params.nBlockSpan^2;
+
 
 % load stack (expect gif)
 stackPath = fullfile(params.dataDir, subj, stackName);
@@ -208,7 +212,7 @@ params.corrDir = fullfile(movieDateDir, 'referenceLocalization');
 if ~exist(movieDateDir, 'dir'), mkdir(movieDateDir); end
 if ~exist(params.corrDir, 'dir'), mkdir(params.corrDir); end
 
-if isempty(params.whichBlocks), params.whichBlocks = 1:nBlocks; end
+if isempty(params.whichBlocks), params.whichBlocks = 1:params.nBlocks; end
 if isempty(params.whichFrames), params.whichFrames = 1:movieLength; end
 if isempty(params.whichSlices), params.whichSlices = 1:stackDim.depth; end
 
@@ -217,12 +221,12 @@ if isempty(params.whichSlices), params.whichSlices = 1:stackDim.depth; end
 % blocks, percent overlap between blocks, and maximum amount of rotation
 % (used to create a margin)
 blockLocations = makeBlockLocations(movieHeight, movieWidth, ...
-    params.nBlockSpan, params.blockOverlap, max(params.coarseRotAngles));
+    params.mByNBlocks, params.blockOverlap, max(params.coarseRotAngles));
 
 
 % initialize matrix to store peak of correlations
-xyzrcoPeak = zeros(6,nBlocks,movieLength);
-xyzrSearchRange = zeros(5,nBlocks);
+xyzrcoPeak = zeros(6,params.nBlocks,movieLength);
+xyzrSearchRange = zeros(5,params.nBlocks);
 
 
 % ------ iterate through the frames of the movie ------ %
@@ -241,7 +245,7 @@ for ff = 1:length(params.whichFrames),
     end
     
     clf(diffFig); clf(allValsPeakFig)
-    [~, allValsPeakMat]  = makeSubplots(allValsPeakFig,sqrt(nBlocks),sqrt(nBlocks),.1,.1,[ 0 0 1 1]);
+    [~, allValsPeakMat]  = makeSubplots(allValsPeakFig,sqrt(params.nBlocks),sqrt(params.nBlocks),.1,.1,[ 0 0 1 1]);
     
     
     if ff == 1
@@ -256,7 +260,7 @@ for ff = 1:length(params.whichFrames),
         thisBlockLoc  = blockLocations(:,:,thisBlockNo);
         bInf          = getBlockInf(thisBlockLoc);
         % get the subscript position for this block in the grid
-        [blocki, blockj] = ind2sub([sqrt(nBlocks), sqrt(nBlocks)], thisBlockNo);
+        [blocki, blockj] = ind2sub([sqrt(params.nBlocks), sqrt(params.nBlocks)], thisBlockNo);
         
         
         % === Fill in correlations for neighborhood around peak ==== %
@@ -503,7 +507,7 @@ if params.useSavedSearchRange
         fprintf('Could not find file with searchRange. Recomputing...');
     else
         p = load(searchRangePath);
-        hasSameParams = (p.params.nBlockSpan == params.nBlockSpan & isequal(p.params.whichBlocks, params.whichBlocks) ...
+        hasSameParams = (isequal(p.params.mByNBlocks, params.mByNBlocks) & isequal(p.params.whichBlocks, params.whichBlocks) ...
             & isequal(p.params.whichSlices, params.whichSlices) & p.params.whichFrames(1) == params.whichFrames(1) ...
             & p.params.inferZWindow == params.inferZWindow & (p.params.zFitPower == params.zFitPower | params.zSearchRangeUseFit == 0) ...
             & p.params.zSearchRangeUseFit == params.zSearchRangeUseFit &   (p.params.rFitPower == params.rFitPower | params.rSearchRangeUseFit == 0)...
@@ -524,30 +528,30 @@ end
 
 if ~isempty(params.zFitFigName)
     zFitFig = figure('Visible',params.showFigs);
-    [~, zFitPlotMat] = makeSubplots(get(zFitFig,'Number'),params.nBlockSpan,params.nBlockSpan,.1,.1,[.05 .05 .95 .95]);
+    [~, zFitPlotMat] = makeSubplots(get(zFitFig,'Number'),params.mByNBlocks(2),params.mByNBlocks(1),.1,.1,[.05 .05 .95 .95]);
     linkaxes(zFitPlotMat(:));
 end
 if ~isempty(params.rFitFigName)
     rFitFig = figure('Visible',params.showFigs);
-    [~, rFitPlotMat] = makeSubplots(get(rFitFig,'Number'),params.nBlockSpan,params.nBlockSpan,.1,.1,[.05 .05 .95 .95]);
+    [~, rFitPlotMat] = makeSubplots(get(rFitFig,'Number'),params.mByNBlocks(2),params.mByNBlocks(1),.1,.1,[.05 .05 .95 .95]);
     linkaxes(rFitPlotMat(:));
 end
 
 [stackDim.height, stackDim.width, stackDim.depth] = size(stack);
-nBlocks = params.nBlockSpan^2;
+
 
 % ------------ get initial z  estimate for each block --------------- %
 fprintf('getting initial searchRange on z for all blocks...\n');
-bestZData    = zeros(1,nBlocks);
-bestZFit     = zeros(1,nBlocks);
-bestRData    = zeros(1,nBlocks);
-bestRFit     = zeros(1,nBlocks);
-bestXCtrData  = zeros(1,nBlocks);
-bestYCtrData  = zeros(1,nBlocks);
-bestXCtrDataRot = zeros(1,nBlocks);
-bestYCtrDataRot = zeros(1,nBlocks);
-blockHeights = zeros(1,nBlocks);
-blockWidths  = zeros(1,nBlocks);
+bestZData    = zeros(1,params.nBlocks);
+bestZFit     = zeros(1,params.nBlocks);
+bestRData    = zeros(1,params.nBlocks);
+bestRFit     = zeros(1,params.nBlocks);
+bestXCtrData  = zeros(1,params.nBlocks);
+bestYCtrData  = zeros(1,params.nBlocks);
+bestXCtrDataRot = zeros(1,params.nBlocks);
+bestYCtrDataRot = zeros(1,params.nBlocks);
+blockHeights = zeros(1,params.nBlocks);
+blockWidths  = zeros(1,params.nBlocks);
 
 for bb = 1:length(params.whichBlocks)
     
@@ -597,7 +601,7 @@ for bb = 1:length(params.whichBlocks)
     
     % save a report of the peak correlations and fits that will be used to get neighborhoods
     if ~isempty(params.zFitFigName)
-        [blocki, blockj] = ind2sub([params.nBlockSpan, params.nBlockSpan], thisBlockNo);
+        [blocki, blockj] = ind2sub(params.mByNBlocks, thisBlockNo);
         
         ax1 = zFitPlotMat(blocki, blockj); hold(ax1, 'on');
         set(ax1,'box','off','ylim',[-.25 1], 'YTick',[round(max(maxCorrByZData),2)],...
@@ -611,9 +615,9 @@ for bb = 1:length(params.whichBlocks)
         plot(ax1, 1:stackDim.depth, maxCorrByZData, '.', 'color', [.2 .4 .6], 'markersize',1.75)%;,...,
         %'markeredgecolor','k','linewidth',.05,'markersize',3);
         
-        if blockj == 1 & blocki == ceil(params.nBlockSpan/2), ylabel(ax1,'correlation');
+        if blockj == 1 & blocki == ceil(params.mByNBlocks(1)/2), ylabel(ax1,'correlation');
         end
-        if blockj == ceil(params.nBlockSpan/2) & blocki == params.nBlockSpan, xlabel(ax1,'stack slice #')
+        if blockj == ceil(params.mByNBlocks(j)/2) & blocki == params.mByNBlocks(1), xlabel(ax1,'stack slice #')
         end
     end
     
@@ -691,7 +695,7 @@ for bb = 1:length(params.whichBlocks)
     
     % save a report of the peak correlations and fits that will be used to get neighborhoods
     if ~isempty(params.rFitFigName)
-        [blocki, blockj] = ind2sub([params.nBlockSpan, params.nBlockSpan], thisBlockNo);
+        [blocki, blockj] = ind2sub(params.mByNBlocks, thisBlockNo);
         ax1 = rFitPlotMat(blocki, blockj);
         hold(ax1, 'on');
         set(ax1,'box','off','ylim',[lowestCorr highestCorr], 'YTick',[round(max(maxCorrByRData),2)],...%'YTickLabel',[max(maxCorrByRData)], ...
@@ -705,9 +709,9 @@ for bb = 1:length(params.whichBlocks)
         plot(ax1,repmat(bestRData(thisBlockNo),1,2),[0 1], '--', 'color', [.3 .5 .7],'linewidth',1)
         plot(ax1, params.coarseRotAngles, maxCorrByRData, '.', 'color', [.2 .4 .6],'markersize',1.75);
         
-        if blockj == 1 & blocki == ceil(params.nBlockSpan/2), ylabel(ax1,'correlation');
+        if blockj == 1 & blocki == ceil(params.mByNBlocks(1)/2), ylabel(ax1,'correlation');
         end
-        if blockj == ceil(params.nBlockSpan/2) & blocki == params.nBlockSpan, xlabel(ax1,'rotation angle (deg)')
+        if blockj == ceil(params.mByNBlocks(2)/2) & blocki == params.mByNBlocks(1), xlabel(ax1,'rotation angle (deg)')
         end
     end
     
