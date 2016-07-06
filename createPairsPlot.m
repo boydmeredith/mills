@@ -1,4 +1,4 @@
-function [pairsPlot] = createPairsPlot(subj, movieDate, blockNo, frameNo)
+function [pairsPlot] = createPairsPlot(subj, movieDate, location, blockNo, frameNo)
 % function [pairsPlot] = createPairsPlot(subj, movieDate, blockNo, frameNo)
 %
 % Plots correlation values around the peak for 2 and 1 dimension
@@ -12,12 +12,12 @@ function [pairsPlot] = createPairsPlot(subj, movieDate, blockNo, frameNo)
 
 figTitle = sprintf('%s %s block: %03d frame %03d', subj, movieDate, blockNo, frameNo);
 
-blockPath = fullfile(jlgDataDir, subj, movieDate,...
-    sprintf('referenceLocalization/frame%03d/block%03d.mat', frameNo, blockNo));
+blockPath = fullfile(referenceLocalizationDir(subj, date, location),...
+    sprintf('/frame%03d/block%03d.mat', frameNo, blockNo));
 
 blockSt = load(blockPath);
 
-refinfo = imfinfo(fullfile(jlgDataDi, blockSt.stackPath));
+refinfo = imfinfo(fullfile(jlgDataDir, blockSt.stackPath));
 
 refDepth = length(refinfo);
 refHeight = refinfo(1).Height;
