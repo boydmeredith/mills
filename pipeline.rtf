@@ -11,23 +11,17 @@
 \b0 \
 \
 search widely to narrow down search range\
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-\cf0 	find best XYZ for R = 0\
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-\cf0 	\cf2 figure showing maximum correlation vs z in frame001/zFit.pdf \cf0 \
+	find best XYZ for R = 0\
+	\cf2 figure showing maximum correlation vs z in frame001/zFit.pdf \cf0 \
 	find XY outliers using robust planar fit, use inliers to fit XYZ\
 		outliers are defined as points with residuals greater than 8*robustSTD\
 	find best R in (-10:.5:10) for Z = best fit Z, XY = best fit XY \'b1 10 pix\
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-\cf0 	\cf2 figure showing maximum correlation vs angle in frame001/rFit.pdf \cf0 \
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-\cf0 	fit XY with robust planar fit\
+	\cf2 figure showing maximum correlation vs angle in frame001/rFit.pdf \cf0 \
+	fit XY with robust planar fit\
 	use inliers from XY fit to fit R with a plane, fit Z with local piecewise function (loess)\
 	\cf2 figure showing fits and outliers in searchRangeFig.pdf\
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 \cf0 	\cf2 save matrix of fits for future use in xyzrSearchRange.mat\cf0 \
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-\cf0 use XYZR fit values to define center point of search range\
+use XYZR fit values to define center point of search range\
 	R -2 : 0.25 : 2 around fit\
 	Z -6 : 6 around fit\
 	XY search within 20 pixels\
@@ -47,11 +41,14 @@ within search range, compute all correlation values, find best\
 \
 fit XYZR values from frame N\
 	same fitting as above\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 \cf3 	outliers are noted\
 \pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 \cf0 use XYZR fit values to define center point of search range for frame N+1 as above\
 compute all correlation values within search range and find best as above \
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 \cf4 computes in ~8 minutes (about 9.5 hrs for 70 frames)\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 \cf0 \
 \
 
@@ -59,6 +56,6 @@ compute all correlation values within search range and find best as above \
 	
 \b0 run xyzrcBallStickFig to get 3d scatter of block registration for a given frame, or run warpGif to get a movie\
 	run createPairPlots to see 6 plots of correlation peaks \
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-\cf0 \
+	run fitXYZRSearchRange with a frame\'92s xyzr peak as input to get the search range for the following frame\
+\
 }
