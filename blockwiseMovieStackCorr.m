@@ -66,7 +66,6 @@ addOptional(p,'blockSaveFormat', 'block%03i.mat',@isstr);
 addOptional(p, 'rFitFigName','rFit.pdf');
 addOptional(p, 'zFitFigName' ,'zFit.pdf');
 
-addOptional(p, 'ballStickGifName', 'ballStick.gif');
 addOptional(p, 'diffGifName', 'blockDiffs.gif');
 addOptional(p, 'montageGifName', 'blockMontage.gif');
 addOptional(p, 'allValsPeakGifName', 'allValsPeak.gif');
@@ -102,8 +101,8 @@ parse(p,varargin{:})
 % ----------------------------------------- %
 
 
-fprintf('\nstarting registration for subj: %s on movie: %s \n',subj, movieFname);
-% reassign p.Results to paramsults and get rid of p so it is easier to manage
+fprintf('\nstarting registration for subj: %s on movie from %s \n',subj, movieDate);
+% reassign p.Results to params and get rid of p so it is easier to manage
 % subfields
 if ~isempty(fields(p.Unmatched))
     warning(sprintf('unmatched fields in input: \n\t%s\n', strjoin(fields(p.Unmatched),'\n\t')));
@@ -137,28 +136,9 @@ end
 
 set(0, 'DefaultFigureVisible', params.showFigs);
 
-close all;
-
-ballStickGif   = []; ballStickMap   = [];
-diffGif  = []; diffMap  = []; diffFigNo = 4;
-montageGif  = []; montageMap  = [];
-allValsPeakGif = []; allValsPeakMap = [];
-
-if ~isempty(params.ballStickGifName)
-    ballStickFig = figure('Visible',params.showFigs);
-end
-if ~isempty(params.diffGifName)
-    diffFig = figure('Visible',params.showFigs);
-end
-if ~isempty(params.montageGifName)
-    montageFig = figure('Visible',params.showFigs);
-end
-if ~isempty(params.allValsPeakGifName)
-    allValsPeakFig = figure('Visible',params.showFigs);
-end
-
+% date information to save
 dateStr = datestr(now);
-dateNum = datenum(now);
+dateNum = now;
 
 % assemble some variables based on optional input parameters
 params.coarseRotAngles  = -(params.coarseRotWindowRange/2):params.coarseRotStepSz:(params.coarseRotWindowRange/2);
@@ -167,10 +147,10 @@ params.coarseRotAngles = round(params.coarseRotAngles, params.angleSigFig);
 % correlation than the other angles and screw up our fit
 params.coarseRotAngles(params.coarseRotAngles == 0) = [];
 fineRotAngles          = -(params.fineRotWindowRange/2): params.fineRotStepSz ...
-                                        :(params.fineRotWindowRange/2);
+    :(params.fineRotWindowRange/2);
 fineRotAngles          = round(fineRotAngles, params.angleSigFig);
-rotAngleFromInd        = params.coarseRotAngles(1):params.fineRotStepSz ... 
-                                        :params.coarseRotAngles(end);
+rotAngleFromInd        = params.coarseRotAngles(1):params.fineRotStepSz ...
+    :params.coarseRotAngles(end);
 rotAngleFromInd        = round(rotAngleFromInd, params.angleSigFig);
 params.rotAngleFromInd = rotAngleFromInd;
 assert(length(params.rotAngleFromInd) <= 255); % make sure that we can represent rotation with uint8
@@ -179,7 +159,7 @@ assert(length(params.rotAngleFromInd) <= 255); % make sure that we can represent
 
 % load stack (expect gif)
 movieFname = sprintf('%s__%s__AVERAGE.tif',movieDate,params.location);
-if isempty(params.referenceName),
+if isempty(params.stackDate),
     params.stackDate =  defaultStackDate(subj);
 end
 stackPath = fullfile(subj, sprintf('reference_stack_%s.tif',params.stackDate));
@@ -231,7 +211,7 @@ stack = cropStack(stack);
 assert(fullMoviePath(end-3)=='.');
 movieDate = movieFname(1:10);
 movieDateDir = fullfile(params.dataDir, subj, movieDate);
-params.corrDir = fullfile(movieDateDir, 'referenceLocalization');
+params.corrDir = referenceLocalizationDir(subj, movieDate, params.location);
 
 if ~exist(movieDateDir, 'dir'), mkdir(movieDateDir); end
 if ~exist(params.corrDir, 'dir'), mkdir(params.corrDir); end
@@ -252,6 +232,13 @@ blockLocations = makeBlockLocations(movieHeight, movieWidth, ...
 xyzrcoPeak = zeros(6,params.nBlocks,movieLength);
 xyzrSearchRange = zeros(5,params.nBlocks);
 
+if ~isempty(params.summarySaveName)
+    summaryPath = fullfile(params.corrDir, params.summarySaveName);
+    save(summaryPath,'xyzrcoPeak', 'blockLocations','rotAngleFromInd',...
+    'stackPath','moviePath','dateStr', 'dateNum','params',...
+    '-append');
+    summfile = matfile(summaryPath,'writable',true);
+end
 
 % ------ iterate through the frames of the movie ------ %
 for ff = 1:length(params.whichFrames),
@@ -268,10 +255,6 @@ for ff = 1:length(params.whichFrames),
         mkdir(params.frameCorrDir);
     end
     
-    clf(diffFig); clf(allValsPeakFig)
-    [~, allValsPeakMat]  = makeSubplots(allValsPeakFig,sqrt(params.nBlocks),sqrt(params.nBlocks),.1,.1,[ 0 0 1 1]);
-    
-    
     if ff == 1
         [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocations, stack, params);
     end
@@ -283,9 +266,8 @@ for ff = 1:length(params.whichFrames),
         thisBlockNo   = params.whichBlocks(bb);
         thisBlockLoc  = blockLocations(:,:,thisBlockNo);
         bInf          = getBlockInf(thisBlockLoc);
-        % get the subscript position for this block in the grid
-        [blocki, blockj] = ind2sub([sqrt(params.nBlocks), sqrt(params.nBlocks)], thisBlockNo);
-        
+        % compute size of full correlation matrix based on block info
+        corrMatSize = [bInf.height + stackDim.height - 1, bInf.width + stackDim.width - 1];
         
         % === Fill in correlations for neighborhood around peak ==== %
         % -----------------------------------------------------------%
@@ -333,29 +315,29 @@ for ff = 1:length(params.whichFrames),
                 thisSliceNo = thisZRangeToCheck(zz);
                 stackSlice = stack(:,:,thisSliceNo);
                 for rr = rotToKeep
-
+                    
                     % --- most important lines of the function! --- %
                     % rotate the block according to rr
                     blockRot = rotateAndSelectBlock(movieFrame, bInf, rr);
-
+                    
                     % use find to get y and x indices as well as the values
                     % themselves
                     [yIx, xIx, thisCorr] = find(computeBlockImageCorrs(blockRot, ...
                         stackSlice, nbrhdInf, params.minCorrOverlap, 'double'));
-
+                    
                     % don't try to store correlations if we don't find any
                     %(bc we are using a uint and all correlations are <= 0)
                     if isempty(thisCorr), continue; end
                     % --------------------------------------------- %
-
+                    
                     % get the indices of the top nXYToKeep correlations
                     [~, thisCorrSortIx] = sort(thisCorr,'descend');
-
+                    
                     thisCorrXYToKeepIx  = thisCorrSortIx(1:min(length(thisCorr), params.nXYToKeep));
-
+                    
                     % determine where to store these newly computed values
                     storeInd = nn:nn+length(thisCorrXYToKeepIx)-1;
-
+                    
                     % store the x,y,z,r indices and the values themselves for the
                     % top nXYToKeep correlations
                     indX(storeInd) = uint16(xIx(thisCorrXYToKeepIx));
@@ -366,17 +348,21 @@ for ff = 1:length(params.whichFrames),
                     if strcmp(params.corrType,'double')
                         corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
                     else
-                        corrValsToSave(storeInd) = cast(thisCorr(thisCorrXYToKeepIx) * double(intmax(params.corrType)), params.corrType);
+                        corrValsToSave(storeInd) = cast(thisCorr(thisCorrXYToKeepIx) *...
+                            double(intmax(params.corrType)), params.corrType);
                     end
-
+                    
                     % increment index counter
                     nn = storeInd(end)+1;
                 end
             end
-        
-        
+            
+            
             % get the overall peak for this block/frame
             [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, params);
+            % if we don't find any peak, get outta here
+            if isempty(cPeak), break; end
+                
             % check to see if the best z match is too close to an edge
             zTooSmall = find(zRangeToKeep==indZ(peakInd))-1 <= params.flagZNFromEdge;
             zTooBig  = length(zRangeToKeep)-find(zRangeToKeep==indZ(peakInd)) <= params.flagZNFromEdge;
@@ -389,12 +375,7 @@ for ff = 1:length(params.whichFrames),
             thisZRangeToCheck(~ismember(thisZRangeToCheck,params.whichSlices)) = [];
             zRangeToKeep = sort([zRangeToKeep thisZRangeToCheck]);
         end
-       
         
-        % plot all of the saved correlations for this block/frame and mark
-        % the overall peak
-        plot(allValsPeakMat(blocki,blockj), 1:length(corrValsToSave), corrValsToSave,'-',...
-            peakInd, cPeak, 'mx');
         % transform x,y from corrMat space to reference space
         blkCtrInRefX  = double(indX(peakInd)) - (bInf.width-1)/2;
         blkCtrInRefY  = double(indY(peakInd)) - (bInf.height-1)/2;
@@ -402,18 +383,22 @@ for ff = 1:length(params.whichFrames),
         rEdgeFlag = indR(peakInd)-find(params.rotAngleFromInd==rotToKeep(1)) <= params.flagRNFromEdge | ...
             find(params.rotAngleFromInd==rotToKeep(end))-indR(peakInd) <= params.flagRNFromEdge;
         
-        % save absolute peak  
-        if ~strcmp(params.corrType,'double'), 
-            cPeak = double(cPeak)/double(intmax(params.corrType)); 
+        % save absolute peak
+        if ~isempty(cPeak)
+            if ~strcmp(params.corrType,'double'),
+                cPeak = double(cPeak)/double(intmax(params.corrType));
+            end
+            xyzrcoPeak(:,thisBlockNo, thisFrameNo) = [blkCtrInRefX, blkCtrInRefY, ...
+                double(indZ(peakInd)), params.rotAngleFromInd(indR(peakInd)),...
+                cPeak, zEdgeFlag | rEdgeFlag]';
+        else
+            xyzrcoPeak(:, thisBlockNo, thisFrameNo) = [xyzrSearchRange(:,thisBlockNo); nan; 1];
         end
-        xyzrcoPeak(:,thisBlockNo, thisFrameNo) = [blkCtrInRefX, blkCtrInRefY, ...
-            double(indZ(peakInd)), params.rotAngleFromInd(indR(peakInd)),...
-            cPeak, zEdgeFlag | rEdgeFlag]';
-
+        
         if ~isempty(params.blockSaveFormat)
             save(fullfile(params.frameCorrDir, sprintf(params.blockSaveFormat,thisBlockNo)), ...
-                'corrValsToSave', 'indX', 'indY', 'indZ', 'indR', 'analysisDate', ...
-                'stackPath','rotAngleFromInd','thisBlockLoc');
+                'corrValsToSave', 'indX', 'indY', 'indZ', 'indR', 'dateStr','dateNum', ...
+                'stackPath','rotAngleFromInd','thisBlockLoc','corrMatSize');
         end
     end
     
@@ -423,25 +408,9 @@ for ff = 1:length(params.whichFrames),
         xyzrcoPeak(3,:, thisFrameNo), xyzrcoPeak(4,:, thisFrameNo), params);
     xyzrcoPeak(6,:, thisFrameNo) = xyzrcoPeak(6,:, thisFrameNo) | outliersXY;
     
-    % add the ball stick figure for this frame to a running gif, if desired
-    if ~isempty(params.ballStickGifName)
-        ballStickFig = xyzrcBallStickFig(xyzrcoPeak, thisFrameNo, ballStickFig, stackDim);
-        [ballStickGif, ballStickMap] = createGif(ballStickFig,ff,movieLength, ballStickGif,...
-            ballStickMap, fullfile(params.corrDir,params.ballStickGifName));
-    end
-    
-    
-
-    % all correlations with absolute peak marked
-    if ~isempty(params.allValsPeakGifName)
-    [allValsPeakGif, allValsPeakMap] = createGif(allValsPeakFig,ff, movieLength,allValsPeakGif,...
-        allValsPeakMap,fullfile(params.corrDir, params.allValsPeakGifName));
-    end
-    
-    % save summary
+    % write the results of this frame into the summary file
     if ~isempty(params.summarySaveName)
-        save(fullfile(params.corrDir, params.summarySaveName), 'xyzrcoPeak', 'blockLocations', ...
-            'rotAngleFromInd','stackPath','moviePath','dateStr', 'dateNum','params');
+        summfile.xyzrcoPeak(:,:,thisFrameNo) = xyzrcoPeak(:,:,thisFrameNo);
     end
     
 end
@@ -450,18 +419,28 @@ set(0, 'DefaultFigureVisible', 'on');
 
 end
 
+
+
+
+
+
+
 %%%%%%% END OF MAIN FUNCTION %%%%%%%%
 %========================================================================%
 %%%%%%% HELPER FUNCTIONS %%%%%%%%
 
 
-
-
-function [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, paramsults)
+function [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, params)
 
 peakInd = find(corrValsToSave == max(corrValsToSave));
 cPeak   = max(corrValsToSave) ;
 nPeaks  = length(peakInd);
+
+% if there is only one peak, return it without any further computation
+if nPeaks==1, return; end
+% if there are more than 10 peaks or the max value is 0, just give up
+if nPeaks > 10 || cPeak == 0 || isnan(cPeak), cPeak = []; peakInd = []; return; end
+
 
 %if nPeaks==1, return, end
 
@@ -473,8 +452,8 @@ for pp = 1:nPeaks
     zPNbrhd = indZ > indZ(thisPeakInd) - 3 & indZ < indZ(thisPeakInd) + 3;
     xPNbrhd = indX > indX(thisPeakInd) - 5 & indX < indX(thisPeakInd) + 5;
     yPNbrhd = indY > indY(thisPeakInd) - 5 & indY < indY(thisPeakInd) + 5;
-    rPNbrhd = indR > indR(thisPeakInd) - 1/paramsults.fineRotStepSz & ...
-        indR < indR(thisPeakInd) + 1/paramsults.fineRotStepSz;
+    rPNbrhd = indR > indR(thisPeakInd) - 1/params.fineRotStepSz & ...
+        indR < indR(thisPeakInd) + 1/params.fineRotStepSz;
     
     peakNbrhd = xPNbrhd & yPNbrhd & zPNbrhd & rPNbrhd;disp(sum(peakNbrhd))
     
@@ -483,6 +462,7 @@ for pp = 1:nPeaks
 end
 
 peakInd = peakInd(find(pCorrValMean == max(pCorrValMean)));
+% break ties randomly
 if length(peakInd) > 1
     warning('WARNING: broke tie between multiple peaks randomly')
     [~, randIx] = max(randn(1,length(peakInd)));
@@ -522,29 +502,28 @@ else
     nbrhdInf = struct('xMargin', params.searchRangeXMargin, 'yMargin', params.searchRangeYMargin);
 end
 
-
-searchRangePath = fullfile(params.corrDir, params.xyzrSearchRangeSaveName);
-
-if params.useSavedSearchRange
-    fprintf('Attempting to use saved searchRange...\n');
-    if ~exist(searchRangePath, 'file')
-        fprintf('Could not find file with searchRange. Recomputing...');
+if ~isempty(params.summarySaveName)
+    summaryPath = fullfile(params.corrDir, params.summarySaveName);
+    % load the summary.mat file
+    sfile = matfile(summaryPath, 'Writable',true);
+    if ~isfield(sfile,'params')
+        fprintf('Could not find xyzrSearchRange in summary.mat. Recomputing...');
     else
-        p = load(searchRangePath);
-        hasSameParams = (isequal(p.params.mByNBlocks, params.mByNBlocks) & isequal(p.params.whichBlocks, params.whichBlocks) ...
-            & isequal(p.params.whichSlices, params.whichSlices) & p.params.whichFrames(1) == params.whichFrames(1) ...
-            & p.params.inferZWindow == params.inferZWindow & (p.params.zFitPower == params.zFitPower | params.zSearchRangeUseFit == 0) ...
-            & p.params.zSearchRangeUseFit == params.zSearchRangeUseFit &   (p.params.rFitPower == params.rFitPower | params.rSearchRangeUseFit == 0)...
-            & p.params.rSearchRangeUseFit == params.rSearchRangeUseFit & isequal(p.params.coarseRotAngles,params.coarseRotAngles) ...
-            & isequal(p.params.rotAngleFromInd,params.rotAngleFromInd) & params.nRSTD==p.params.nRSTD & params.xRadiusMin==p.params.xRadiusMin & ...
-            params.yRadiusMin==p.params.yRadiusMin);
-        if (hasSameParams || params.useSavedSearchRangeEitherWay) && isfield(p,'xyzrSearchRange') && isfield(p,'outliersXY')
-            xyzrSearchRange = p.xyzrSearchRange;
-            outliersXY      = p.outliersXY;
+        fprintf('Attempting to use saved searchRange...\n');
+        hasSameParams = (isequal(sfile.params.mByNBlocks, params.mByNBlocks) & isequal(sfile.params.whichBlocks, params.whichBlocks) ...
+            & isequal(sfile.params.whichSlices, params.whichSlices) & sfile.params.whichFrames(1) == params.whichFrames(1) ...
+            & sfile.params.inferZWindow == params.inferZWindow & (sfile.params.zFitPower == params.zFitPower | params.zSearchRangeUseFit == 0) ...
+            & sfile.params.zSearchRangeUseFit == params.zSearchRangeUseFit &   (sfile.params.rFitPower == params.rFitPower | params.rSearchRangeUseFit == 0)...
+            & sfile.params.rSearchRangeUseFit == params.rSearchRangeUseFit & isequal(sfile.params.coarseRotAngles,params.coarseRotAngles) ...
+            & isequal(sfile.params.rotAngleFromInd,params.rotAngleFromInd) & params.nRSTD==sfile.params.nRSTD & params.xRadiusMin==sfile.params.xRadiusMin & ...
+            params.yRadiusMin==sfile.params.yRadiusMin);
+
+        if (hasSameParams || params.useSavedSearchRangeEitherWay) && isfield(sfile,'xyzrSearchRange') && isfield(sfile,'outliersXY')
+            xyzrSearchRange = sfile.xyzrSearchRange;
+            outliersXY      = sfile.outliersXY;
             return
         else
             fprintf('Parameters did not match previously computed searchRange. Recomputing...');
-            clear p
         end
     end
 end
@@ -641,7 +620,7 @@ for bb = 1:length(params.whichBlocks)
         
         if blockj == 1 & blocki == ceil(params.mByNBlocks(1)/2), ylabel(ax1,'correlation');
         end
-        if blockj == ceil(params.mByNBlocks(j)/2) & blocki == params.mByNBlocks(1), xlabel(ax1,'stack slice #')
+        if blockj == ceil(params.mByNBlocks(2)/2) & blocki == params.mByNBlocks(1), xlabel(ax1,'stack slice #')
         end
     end
     
@@ -757,8 +736,11 @@ end
 [xyzrSearchRange, outliersXY] = fitXYZRSearchRange(bestXCtrDataRot,bestYCtrDataRot,...
     xyzSearchRange(3,:),rIn,params,true);
 
-
-save(searchRangePath, 'xyzrSearchRange','params','outliersXY')
+if ~isempty(params.summarySaveName)
+    % write to the summary.mat file
+    sfile.xyzrSearchRange             = xyzrSearchRange;
+    sfile.xyzrSearchRangeOutliersXY   = outliersXY;
+end
 
 end
 
