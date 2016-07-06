@@ -7,7 +7,7 @@ refDateSt = struct( 'J114','2015-11-30',...
                     'J122', '2015-09-27',...
                     'J123', '2015-09-25');
 try
-    refDate = refDateSt(subj);
+    refDate = refDateSt.(subj);
 catch
     error('subject does not have listed reference date');
 end
