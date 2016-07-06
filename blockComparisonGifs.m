@@ -1,21 +1,16 @@
-function [montageGif, diffGif, overlapGif] = blockComparisonGifs(subj, movieDate)
-
-
+function [isSt] = blockComparisonGifs(subj, movieDate, location, whichCompsToSave)
+if isempty(location), location = 'L01'; end
 
 % load peak locations and other useful information
 movieDateDir = fullfile(jlgDataDir, subj, movieDate);
 
-corrDir = fullfile(movieDateDir, 'referenceLocalization');
-load(fullfile(corrDir,'summary.mat'),'xyzrcoPeak','blockLocations','stackPath','params');
-if ~exist('params','var'),
-    load(fullfile(corrDir,'xyzrSearchRange.mat'),'params');
-end
+corrDir = referenceLocalizationDir(subj, movieDate, location);
+s       = load(fullfile(corrDir,'summary.mat'),'xyzrcoPeak','blockLocations',...
+                                                    'stackPath','params');
 
-stackPath = fullfile(jlgDataDir, stackPath);
+fullStackPath = fullfile(jlgDataDir, s.stackPath);
 
-[~, nBlocks, nFrames] = size(xyzrcoPeak);
-
-
+[~, nBlocks, nFrames] = size(s.xyzrcoPeak);
 
 % load movie
 moviePath    = sprintf('%s__L01__AVERAGE.tif',movieDateDir);
@@ -26,47 +21,43 @@ for mm = 1:movieLength
     movie(:,:,mm) = imread(moviePath,mm);
 end
 % load stack
-stackInf = imfinfo(stackPath);
+stackInf = imfinfo(fullStackPath);
 stack = zeros(stackInf(1).Height,stackInf(1).Width,length(stackInf));
-    for ss = 1:length(imfinfo(stackPath))
-        stack(:,:,ss) = imread(stackPath,ss);
-    end
+for ss = 1:length(stackInf)
+    stack(:,:,ss) = imread(fullStackPath,ss);
+end
 stack = cropStack(stack);
 [stackDim.height, stackDim.width, stackDim.depth] = size(stack);
 
 % set up a grid for the montage figure and init some figures
-maxBWidth = max(max(sum(blockLocations,2),[],1));
-maxBHeight = max(max(sum(blockLocations,1),[],2));
-montageGrid = zeros(( maxBHeight + 3) * params.mByNBlocks(1), ...
-    2*params.mByNBlocks(2) * (3+ maxBWidth));
-montageFig = figure;
-diffFig = figure;
-overlapFig = figure;
-montageGif = [];
-montageMap = [];
-diffGif = [];
-diffMap = [];
-overlapGif = [];
-overlapMap = [];
-[~, diffPlotMat]  = makeSubplots(diffFig,sqrt(nBlocks),sqrt(nBlocks),0,0,[ 0 0 1 1]);
-[~, overlapPlotMat]  = makeSubplots(overlapFig,sqrt(nBlocks),sqrt(nBlocks),0,0,[ 0 0 1 1]);
+maxBWidth = max(max(sum(s.blockLocations,2),[],1));
+maxBHeight = max(max(sum(s.blockLocations,1),[],2));
+montageGrid = zeros(( maxBHeight + 3) * s.params.mByNBlocks(1), ...
+    2*s.params.mByNBlocks(2) * (3+ maxBWidth), movieLength);
+diffGrid = zeros(( maxBHeight + 3) * s.params.mByNBlocks(1), ...
+    s.params.mByNBlocks(2) * (3+ maxBWidth), movieLength);
+overlapGrid = zeros(( maxBHeight + 3) * s.params.mByNBlocks(1), ...
+    s.params.mByNBlocks(2) * (3+ maxBWidth), 3, movieLength);
 
+
+% matrix to store histograms for the first frame for normalization of
+% subsequent frames to avoid uninformative flickering
 frameOneHists = cell(nBlocks);
 
-        
 
-% normalize image versus reference
 for thisFrameNo = 1:nFrames
+    fprintf('frame: %03i/%03i...\t',thisFrameNo,nFrames)
     for thisBlockNo = 1:nBlocks
-        [blocki, blockj] = ind2sub([sqrt(nBlocks), sqrt(nBlocks)], thisBlockNo);
+        [blocki, blockj] = ind2sub(s.params.mByNBlocks, thisBlockNo);
+
         % get block info and block image
         movieFrame = movie(:,:,thisFrameNo);
-        bInf = getBlockInf(blockLocations(:,:,thisBlockNo));
-        bestBlockRot = rotateAndSelectBlock(movieFrame, bInf, xyzrcoPeak(4,thisBlockNo,thisFrameNo));
+        bInf = getBlockInf(s.blockLocations(:,:,thisBlockNo));
+        bestBlockRot = rotateAndSelectBlock(movieFrame, bInf, s.xyzrcoPeak(4,thisBlockNo,thisFrameNo));
         
         % get the corresponding reference block iamge based on peak location
-        blkCtrInRefX = xyzrcoPeak(1,thisBlockNo,thisFrameNo);
-        blkCtrInRefY = xyzrcoPeak(2,thisBlockNo,thisFrameNo);
+        blkCtrInRefX = s.xyzrcoPeak(1,thisBlockNo,thisFrameNo);
+        blkCtrInRefY = s.xyzrcoPeak(2,thisBlockNo,thisFrameNo);
         refBlockIndX = blkCtrInRefX - (bInf.width-1)/2 : blkCtrInRefX + (bInf.width-1)/2;
         refBlockIndY = blkCtrInRefY - (bInf.height-1)/2 : blkCtrInRefY + (bInf.height-1)/2;
         % pad the reference block if it is smaller because the match partially overlaps with the edge of the reference image
@@ -77,7 +68,7 @@ for thisFrameNo = 1:nFrames
         % zero out indices that don't land in the reference
         refBlockIndY(refBlockIndY < 1 | refBlockIndY > stackDim.height) = [];
         refBlockIndX(refBlockIndX < 1 | refBlockIndX > stackDim.width) = [];
-        refBlock = stack(refBlockIndY, refBlockIndX, xyzrcoPeak(3,thisBlockNo,thisFrameNo));
+        refBlock = stack(refBlockIndY, refBlockIndX, s.xyzrcoPeak(3,thisBlockNo,thisFrameNo));
         refBlock = padarray(refBlock, [topPad leftPad], 0, 'pre');
         refBlock = padarray(refBlock, [bottomPad rightPad], 0, 'post');
         
@@ -99,42 +90,41 @@ for thisFrameNo = 1:nFrames
         refBlock        = imhistmatch(refBlock,frameOneHists{thisBlockNo});
         %bestBlockRotFit = polyval(polyfit(bestBlockRot(:),refBlock(:),1),bestBlockRot);
 
-        %         h=figure; imagesc([bestBlockRot refBlock bestBlockRotFit],'parent',h);
-        %         close(h)
         % plot block-ref montage
-        montageGrid(1+(maxBHeight+3)*(blocki-1):...
-            (maxBHeight+3)*(blocki-1)+size(bestBlockRot,1),...
-            1+(2*maxBWidth+3)*(blockj-1):...
-            (2*maxBWidth+3)*(blockj-1)+2*size(bestBlockRot,2)) = ...
-            [bestBlockRot refBlock];
         
-        % montage image
-        set(0,'currentfigure',montageFig);
-        montageFigAx = cla;
-        imagesc(montageGrid,'parent', montageFigAx);
-        colormap(montageFigAx, 'bone');
-        set(montageFig, 'Position', [1, 1, 1577, 954]);
-        set(montageFigAx,'position',[.01 .01 .98 .98],'XTick',[],'YTick',[])
-        axis(montageFigAx, 'image');
-
+        % set up the indices for the plots
+        xStartMontage = 1+(2*maxBWidth+3)*(blockj-1);
+        xEndMontage = xStartMontage+2*size(bestBlockRot,2)-1;
+        
+        yStart = 1+(maxBHeight+3)*(blocki-1);
+        xStart = 1+(maxBWidth+3)*(blockj-1);
+        
+        yEnd   = yStart+size(bestBlockRot,1)-1;
+        xEnd   = xStart+size(bestBlockRot,2)-1;
         
         
-        % plot block-ref diff
-        imagesc(bestBlockRot - refBlock,'parent',diffPlotMat(blocki,blockj));
-        %imagesc(normalizeToZeroOne(bestBlockRot) - imhistmatch(normalizeToZeroOne(refBlock), normalizeToZeroOne(bestBlockRot)), 'parent',diffPlotMat(blocki,blockj));
-        set(diffPlotMat(blocki,blockj), 'XTick',[],'YTick',[]);
-        colormap(diffPlotMat(blocki,blockj), bone);
-        axis(diffPlotMat(blocki,blockj),'image')
-        % plot block-ref overlap
-        imshowpair(bestBlockRot, refBlock,'falsecolor','parent',overlapPlotMat(blocki,blockj));
-        axis(overlapPlotMat(blocki,blockj),'image')
+        montageGrid(yStart : yEnd, xStartMontage:xEndMontage, ...
+            thisFrameNo) = [bestBlockRot refBlock];
         
+        % plot diff image
+        diffGrid(yStart:yEnd,xStart:xEnd,thisFrameNo) = bestBlockRot - refBlock;
         
-        [diffGif, diffMap] = createGif(diffFig,thisFrameNo, movieLength,diffGif,...
-            diffMap,fullfile(corrDir, 'blockDiffs.gif'));
-        [montageGif, montageMap] = createGif(montageFig,thisFrameNo, movieLength,montageGif,...
-            montageMap,fullfile(corrDir, 'blockMontage.gif'));
-        [overlapGif, overlapMap] = createGif(overlapFig,thisFrameNo, movieLength,overlapGif,...
-            overlapMap,fullfile(corrDir, 'blockOverlap.gif'));
+        % plot falsecolor image
+        overlapGrid(yStart:yEnd,xStart:xEnd,:,thisFrameNo) = cat(3,refBlock,bestBlockRot, bestBlockRot);
+        
     end
+  
+end
+
+isSt.overlap = imageSeries(overlapGrid);
+isSt.diff    = imageSeries(diffGrid);
+isSt.montage = imageSeries(montageGrid);
+if ismember('o',whichCompsToSave)
+    isSt.overlap.saveImages(fullfile(corrDir,'blockOverlap.gif'));
+end
+if ismember('m',whichCompsToSave)
+    isSt.montage.saveImages(fullfile(corrDir,'blockmontage.gif'));
+end
+if ismember('d',whichCompsToSave)
+    isSt.diff.saveImages(fullfile(corrDir,'blockDiff.gif'));
 end
