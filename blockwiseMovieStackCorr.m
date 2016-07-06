@@ -15,9 +15,16 @@ addOptional(p,'blockOverlap',10,@(x) ispositive(x) & isnumeric(x));
 
 addOptional(p,'coarseRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'coarseRotWindowRange',20, @(x) ispositive(x) & isnumeric(x));
-%addOptional(p,'fineRotStepSz',.1, @(x) ispositive(x) & isnumeric(x));
-addOptional(p,'fineRotStepSz',.25, @(x) ispositive(x) & isnumeric(x));
-addOptional(p,'fineRotWindowRange',6, @(x) ispositive(x) & isnumeric(x));
+
+if strcmp(subj,'J114')
+    addOptional(p,'fineRotWindowRange',10, @(x) ispositive(x) & isnumeric(x));
+    addOptional(p,'fineRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
+    
+else
+    addOptional(p,'fineRotWindowRange',6, @(x) ispositive(x) & isnumeric(x));
+    addOptional(p,'fineRotStepSz',.25, @(x) ispositive(x) & isnumeric(x));
+    
+end
 addOptional(p,'nXYToKeep', 400, @(x) isnumeric(x) & ~mod(x,1));
 
 addOptional(p,'nZToKeepInlier', 11, @(x) isnumeric(x) & mod(x,2) == 1);
