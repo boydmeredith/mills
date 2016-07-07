@@ -395,6 +395,24 @@ for ff = 1:length(params.whichFrames),
             xyzrcoPeak(:, thisBlockNo, thisFrameNo) = [xyzrSearchRange(:,thisBlockNo); nan; 1];
         end
         
+        % round the x and y centers according to the dimensions of the
+        % block. If the block dimension is even, the center should be at a
+        % multiple of .5
+        thisX = xyzrcoPeak(1, thisBlockNo, thisFrameNo);
+        thisY = xyzrcoPeak(2, thisBlockNo, thisFrameNo);
+        if ~mod(bInf.width,2) % if width is even, put x center at multiple of .5
+            xyzrcoPeak(1, thisBlockNo, thisFrameNo) = round(thisX) + sign(thisX-round(thisX))*.5;
+        else
+            xyzrcoPeak(1, thisBlockNo, thisFrameNo) = round(thisX);
+            
+        end
+        if ~mod(bInf.height,2) % if height is even, put y center at multiple of .5
+            xyzrcoPeak(2, thisBlockNo, thisFrameNo) = round(thisY) + sign(thisY-round(thisY))*.5;
+        else
+            xyzrcoPeak(2, thisBlockNo, thisFrameNo) = round(thisY);
+            
+        end
+        
         if ~isempty(params.blockSaveFormat)
             save(fullfile(params.frameCorrDir, sprintf(params.blockSaveFormat,thisBlockNo)), ...
                 'corrValsToSave', 'indX', 'indY', 'indZ', 'indR', 'dateStr','dateNum', ...
