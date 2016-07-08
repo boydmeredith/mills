@@ -3,7 +3,7 @@ if isempty(location)
     location = 'L01';
 end
 theRefLocDir = referenceLocalizationDir(subj, movieDate, location);
-s = matfile(fullfile(theRefLocDir, 'summary.mat'));
+s = load(fullfile(theRefLocDir, 'summary.mat'),'xyzrcoPeak','params');
 par = s.params;
 mBlocks = par.mByNBlocks(1);
 nBlocks = par.mByNBlocks(2);

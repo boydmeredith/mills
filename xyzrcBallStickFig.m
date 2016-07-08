@@ -1,4 +1,4 @@
-function [ballStickFig] = xyzrcBallStickFig(xyzrcoPeak, thisFrameNo, ballStickFig, stackDim)
+function [ballStickFig] = xyzrcBallStickFig(xyzrcoPeak, thisFrameNo, ballStickFig, stackDim, mByN)
 
 
 nBlocks = size(xyzrcoPeak,2);
@@ -11,8 +11,8 @@ if isempty(stackDim),
     ylimits = [-100, 600]; 
     zlimits = [min(reshape(xyzrcoPeak(3,:),[],1)), max(reshape(xyzrcoPeak(3,:),[],1))];
 else
-    xlimits = [-100 stackDim.width*(1+1/sqrt(nBlocks))];
-    ylimits = [-100 stackDim.height*(1+1/sqrt(nBlocks))]; 
+    xlimits = [-100 stackDim.width*(1+1/mByN(2))];
+    ylimits = [-100 stackDim.height*(1+1/mByN(1))]; 
     zlimits = [1 stackDim.depth];
 end
 
@@ -20,9 +20,9 @@ end
 % ball and stick image plot circles for the block centers with size
 %   proportional to rotation index and colored by their correlation value
 thisFramePeaks = xyzrcoPeak(:,:,thisFrameNo);
-thisFramePeaksGridX = reshape(thisFramePeaks(1,:), sqrt(nBlocks), sqrt(nBlocks));
-thisFramePeaksGridY = reshape(thisFramePeaks(2,:), sqrt(nBlocks), sqrt(nBlocks));
-thisFramePeaksGridZ = reshape(thisFramePeaks(3,:), sqrt(nBlocks), sqrt(nBlocks));
+thisFramePeaksGridX = reshape(thisFramePeaks(1,:), mByN(1), mByN(2));
+thisFramePeaksGridY = reshape(thisFramePeaks(2,:), mByN(1), mByN(2));
+thisFramePeaksGridZ = reshape(thisFramePeaks(3,:), mByN(1), mByN(2));
 
 clf(ballStickFig);
 ballStickAx = axes('parent',ballStickFig);
@@ -55,6 +55,9 @@ else
 end
 
 
+%surf(thisFramePeaksGridX,thisFramePeaksGridY,thisFramePeaksGridZ,'facecolor','blue','parent',ballStickAx);
+%alpha(.3)
+
 scatter3(ballStickAx, thisFramePeaks(1,:),thisFramePeaks(2,:),...
     thisFramePeaks(3,:),...
     markersizes,...%max(reshape(thisFramePeaks(4,:),[],1),1),...
@@ -72,12 +75,11 @@ end
 
 
 % connect the circles with lines
-for bb = 1:sqrt(nBlocks)
-    plot3(ballStickAx, thisFramePeaksGridX(bb,:),thisFramePeaksGridY(bb,:),...
-        thisFramePeaksGridZ(bb,:),'-','color',[.4 .4 .5]);
-    plot3(ballStickAx, thisFramePeaksGridX(:,bb),thisFramePeaksGridY(:,bb),...
-        thisFramePeaksGridZ(:,bb),'-','color',[.4 .4 .5]);
-end
+plot3(ballStickAx, thisFramePeaksGridX,thisFramePeaksGridY,...
+        thisFramePeaksGridZ,'-','color',[.4 .4 .6]);
+plot3(ballStickAx, thisFramePeaksGridX',thisFramePeaksGridY',...
+        thisFramePeaksGridZ','-','color',[.4 .4 .6]);
+
 set(ballStickAx,'xdir','rev','xlim',xlimits,...
     'ylim',ylimits,...
     'zdir','reverse','zlim',zlimits,...
@@ -90,12 +92,11 @@ c.Label.String = 'Rotation Angle';
 
 
 
-
+grid(ballStickAx,'on')
 
 
 title(ballStickAx, frameString);
 
-set(gca,'color',[.8 .8 .8],'clim',climits);
 
 
 end

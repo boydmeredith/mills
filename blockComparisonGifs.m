@@ -1,6 +1,25 @@
 function [isSt] = blockComparisonGifs(subj, movieDate, location, whichCompsToSave)
+% function [isSt] = blockComparisonGifs(subj, movieDate, location, whichCompsToSave)
+%
+% Create imageSeries showing comparisons of the blocks in a movie and the
+% matches found in a reference. Image histograms are modified to get rid of
+% uninformative flickering from frame to frame.
+%
+% Input: 
+% - subj, movieDate, location
+% - whichCompsToSave:   any combination of the letters 'mod'?they indicate
+%                       which image series to save as gifs.
+%
+% Output: 
+% Three comparisons are packaged into the struct isSt, they are:
+% - overlap:    shows the reference in the Red channel and the blocks in the
+%              (greenish)-Blue channel
+% - montage:    shows the images side by side
+% - diff:       shows the block - the found match 
+%
+%
 if isempty(location), location = 'L01'; end
-
+if nargin < 4, whichCompesToSave = ''; end
 % load peak locations and other useful information
 movieDateDir = fullfile(jlgDataDir, subj, movieDate);
 
@@ -17,12 +36,14 @@ moviePath    = sprintf('%s__L01__AVERAGE.tif',movieDateDir);
 movieInf     = imfinfo(moviePath);
 movie        = zeros(movieInf(1).Height,movieInf(1).Width,length(movieInf));
 movieLength = size(movie,3);
+fprintf('loading movie for subj: %s date: %s location: %s\n', subj, movieDate,location);
 for mm = 1:movieLength
     movie(:,:,mm) = imread(moviePath,mm);
 end
 % load stack
 stackInf = imfinfo(fullStackPath);
 stack = zeros(stackInf(1).Height,stackInf(1).Width,length(stackInf));
+fprintf('loading stack...\n');
 for ss = 1:length(stackInf)
     stack(:,:,ss) = imread(fullStackPath,ss);
 end
@@ -120,11 +141,11 @@ isSt.overlap = imageSeries(overlapGrid);
 isSt.diff    = imageSeries(diffGrid);
 isSt.montage = imageSeries(montageGrid);
 if ismember('o',whichCompsToSave)
-    isSt.overlap.saveImages(fullfile(corrDir,'blockOverlap.gif'));
+    isSt.overlap.saveImages(fullfile(corrDir,'blockOverlap'),'imageType','gif','class','uint8','normalizeColors',true);
 end
 if ismember('m',whichCompsToSave)
-    isSt.montage.saveImages(fullfile(corrDir,'blockmontage.gif'));
+    isSt.montage.saveImages(fullfile(corrDir,'blockmontage'),'imageType','gif','class','uint8','normalizeColors',true);
 end
 if ismember('d',whichCompsToSave)
-    isSt.diff.saveImages(fullfile(corrDir,'blockDiff.gif'));
+    isSt.diff.saveImages(fullfile(corrDir,'blockDiff'),'imageType','gif','class','uint8','normalizeColors',true);
 end
