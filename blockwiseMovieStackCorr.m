@@ -235,7 +235,7 @@ xyzrSearchRange = zeros(5,params.nBlocks);
 if ~isempty(params.summarySaveName)
     summaryPath = fullfile(params.corrDir, params.summarySaveName);
     save(summaryPath,'xyzrcoPeak', 'blockLocations','rotAngleFromInd',...
-    'stackPath','moviePath','dateStr', 'dateNum','params',...
+    'stackPath','moviePath','dateStr', 'dateNum','params','stackDim',...
     '-append');
     summfile = matfile(summaryPath,'writable',true);
 end
@@ -400,13 +400,13 @@ for ff = 1:length(params.whichFrames),
         % multiple of .5
         thisX = xyzrcoPeak(1, thisBlockNo, thisFrameNo);
         thisY = xyzrcoPeak(2, thisBlockNo, thisFrameNo);
-        if ~mod(bInf.width,2) % if width is even, put x center at multiple of .5
+        if ~mod(bInf.width,2) % if width is even, put x center at closest .5, else closest integer
             xyzrcoPeak(1, thisBlockNo, thisFrameNo) = round(thisX) + sign(thisX-round(thisX))*.5;
         else
             xyzrcoPeak(1, thisBlockNo, thisFrameNo) = round(thisX);
             
         end
-        if ~mod(bInf.height,2) % if height is even, put y center at multiple of .5
+        if ~mod(bInf.height,2) % if height is even, put y center at closest .5, else closest integer
             xyzrcoPeak(2, thisBlockNo, thisFrameNo) = round(thisY) + sign(thisY-round(thisY))*.5;
         else
             xyzrcoPeak(2, thisBlockNo, thisFrameNo) = round(thisY);
