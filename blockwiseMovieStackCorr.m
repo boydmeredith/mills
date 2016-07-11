@@ -234,9 +234,14 @@ xyzrSearchRange = zeros(5,params.nBlocks);
 
 if ~isempty(params.summarySaveName)
     summaryPath = fullfile(params.corrDir, params.summarySaveName);
-    save(summaryPath,'xyzrcoPeak', 'blockLocations','rotAngleFromInd',...
-    'stackPath','moviePath','dateStr', 'dateNum','params','stackDim',...
-    '-append');
+    if exist(summaryPath,'file')
+        save(summaryPath,'xyzrcoPeak', 'blockLocations','rotAngleFromInd',...
+        'stackPath','moviePath','dateStr', 'dateNum','params','stackDim',...
+        '-append');
+    else
+        save(summaryPath,'xyzrcoPeak', 'blockLocations','rotAngleFromInd',...
+        'stackPath','moviePath','dateStr', 'dateNum','params','stackDim');
+    end
     summfile = matfile(summaryPath,'writable',true);
 end
 
