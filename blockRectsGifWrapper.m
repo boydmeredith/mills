@@ -10,45 +10,82 @@ function [] = blockRectsGifWrapper(subj,movieDate,location,whichFrames,doSave,do
 %
 % doShow determines whether the plots will be displayed as they are created
 
+close all;
 
 if isempty(location), location = 'L01'; end
 if isempty(doSave), doSave = false; end
-if ~doShow || isempty(doShow) , doShow == 'off'; else doShow = 'on'; end
+if ~doShow || isempty(doShow) , doShow = 'off'; else doShow = 'on'; end
 
 theRefLocDir = referenceLocalizationDir(subj, movieDate, location);
 s = load(fullfile(theRefLocDir, 'summary.mat'),'xyzrcoPeak','params','stackPath','blockLocations');
 movieLength = size(s.xyzrcoPeak,3);
+fullStackPath = fullfile(jlgDataDir,s.stackPath);
+stackInf    = imfinfo(fullStackPath);
 if isempty(whichFrames), whichFrames = 1:movieLength; end
 
-h = figure('visible',doShow,'paperpositionmode','auto','position',[ 0 0 1000 1000]);
-ax = axes('parent',h);
-im = []; map = [];
+midStackSlice = imread(fullStackPath,floor(length(stackInf)/2));
 
-fpathToUse = fullfile(theRefLocDir, 'rotatingRects.gif');
+h = figure('visible',doShow,'paperpositionmode','auto','position',[ 0 0 1000 1000]);
+
+map = [];
+
+if doSave, saveName = fullfile(theRefLocDir, 'rotatingRects.gif');
+else, saveName = '';
+end
 
 nBlocks = size(s.xyzrcoPeak,2);
 
+thisCmap = colormapRedBlue;
+thisCmap = thisCmap(linspace(1,size(colormapRedBlue,1),length(stackInf)),:);
+
+bgax = axes('parent',h);
+image((normalizeToZeroOne(double(midStackSlice),[0 99.5],true).^1.5)*64,'parent',bgax);
+%image((normalizeToZeroOne(double(midStackSlice),5,true).^.5)*64,'parent',bgax)%,quantile(double(midStackSlice(:)),[0.0001 1-.0001]))
+xlabel(bgax,'x position');ylabel(bgax,'y position');
+colormap(bgax,bone);
+bgaxPos = get(bgax,'position');
+cbax = axes('parent',h,'position',[.925 bgaxPos(2) .925 bgaxPos(4)],'color','none');
+colormap(cbax,colormapRedBlue);c = colorbar(cbax,'west'); caxis(cbax,[1 length(stackInf)]);set(c,'ydir','rev')
+axis(cbax,'off');
+ax = axes('position',get(bgax,'position'),'color','none');
+linkaxes([bgax ax]);
+if doSave, fprintf('\n\tWriting images...');end
+tic
 for thisFrameNo=whichFrames,
-    cla(ax);
-    colormap(ax,colormapRedBlue);
-    colorbar(ax);
-    caxis(ax,[s.params.whichSlices(1) s.params.whichSlices(end)]);
-    set(ax, 'ylim', [1 512], 'xlim', [1 512]);
-    xlabel(ax,'x position');ylabel(ax,'y position');
+    %%
+
+    
     title(ax,sprintf('%s %s frame: %03d/%03d',subj,movieDate,thisFrameNo,whichFrames(end)));
     for thisBlockNo = 1:nBlocks,
+        thisColor=thisCmap(s.xyzrcoPeak(3,thisBlockNo,thisFrameNo),:);
         bInf=getBlockInf(s.blockLocations(:,:,thisBlockNo));
+        
         drawShadedRect(bInf.width,bInf.height,s.xyzrcoPeak(1,thisBlockNo,thisFrameNo),...
             s.xyzrcoPeak(2,thisBlockNo,thisFrameNo),s.xyzrcoPeak(4,thisBlockNo,thisFrameNo),...
-            s.xyzrcoPeak(3,thisBlockNo,thisFrameNo),s.xyzrcoPeak(6,thisBlockNo,thisFrameNo), ax);
-        
+            thisColor,s.xyzrcoPeak(6,thisBlockNo,thisFrameNo), ax);
+        %drawnow
+
     end;
-    alpha(findobj(ax),.5);
-    pause(.2);
-    if ~mod(thisFrameNo,15) || thisFrameNo==whichFrames(end) && doSave, 
-        saveName = fpathToUse; 
-    else
-        saveName = [];
+    axis([bgax ax],'image');
+    padWidth = 50;
+    set( ax,'ylim',[1 size(midStackSlice,1)]+[-padWidth padWidth],'xlim',[1 size(midStackSlice,2)]+[-padWidth padWidth])
+
+    %%
+    pause(.55);
+    
+    [~, map] = createGif(h, thisFrameNo, map, saveName);
+
+%%
+    delete(findall(findall(ax,'Type','axe'),'Type','text'))
+    cla(ax);
+    
+    if ~mod(thisFrameNo,15)
+        toc
+        pause(1)
+        tic
+        fprintf('%d... ',thisFrameNo);
     end
-    [im, map] = createGif(h, thisFrameNo, movieLength, im, map, saveName);
 end
+close all; 
+
+

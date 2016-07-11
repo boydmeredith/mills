@@ -1,4 +1,4 @@
-function [im, map]  = createGif(fig, frameNo, movieLength, im, map, gifName)
+function [im, map]  = createGif(fig, frameNo, map, gifName)
 
 % note on hardcopy: matlab says not to use it, but the alternative getframe
 % requires you to have the figure open and fully visible to the user.
@@ -8,14 +8,17 @@ if ~ishandle(fig)
     fig = figure(fig,'Visible','off');
 end
 
-f.cdata = hardcopy(fig, '-Dzbuffer', '-r0');
+f.cdata = hardcopy(fig, '-Dopengl', '-r0');
 if frameNo == 1
     [im, map] = rgb2ind(f.cdata,256,'nodither');
-    im(1,1,1,movieLength) = 0;
+    if ~isempty(gifName)
+        imwrite(im,map,gifName,'gif','DelayTime',.2,'LoopCount',Inf);
+    end
 else
-    im(:,:,1,frameNo) = rgb2ind(f.cdata,map,'nodither');
+    im(:,:,1) = rgb2ind(f.cdata,map,'nodither');
+    if ~isempty(gifName)
+        imwrite(im,map,gifName,'gif','DelayTime',.2,'WriteMode','append');
+    end
 end
-if ~isempty(gifName)
-    imwrite(im,map,gifName,'DelayTime',.2,'LoopCount',Inf);
-end
+
 end
