@@ -260,7 +260,7 @@ for ff = 1:length(params.whichFrames),
         mkdir(params.frameCorrDir);
     end
     
-    if ff == 1
+    if ff == 1 
         [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocations, stack, params);
     end
     
@@ -396,28 +396,20 @@ for ff = 1:length(params.whichFrames),
             xyzrcoPeak(:,thisBlockNo, thisFrameNo) = [blkCtrInRefX, blkCtrInRefY, ...
                 double(indZ(peakInd)), params.rotAngleFromInd(indR(peakInd)),...
                 cPeak, zEdgeFlag | rEdgeFlag]';
-        else
+        else % if no good peak found, use the center of the search range
             xyzrcoPeak(:, thisBlockNo, thisFrameNo) = [xyzrSearchRange(:,thisBlockNo); nan; 1];
+            % round the x and y centers according to the dimensions of the
+            % block. If the block dimension is even, the center should be at a
+            % multiple of .5
+            thisX = xyzrcoPeak(1, thisBlockNo, thisFrameNo);
+            thisY = xyzrcoPeak(2, thisBlockNo, thisFrameNo);
+            % if width is even, put x center at closest .5, else closest integer
+            xyzrcoPeak(1, thisBlockNo, thisFrameNo) = round(thisX) + ~mod(bInf.width,2)*sign(thisX-round(thisX))*.5;
+            % if height is even, put y center at closest .5, else closest integer
+            xyzrcoPeak(2, thisBlockNo, thisFrameNo) = round(thisY) + ~mod(bInf.height,2)*sign(thisY-round(thisY))*.5;
         end
         
-        % round the x and y centers according to the dimensions of the
-        % block. If the block dimension is even, the center should be at a
-        % multiple of .5
-        thisX = xyzrcoPeak(1, thisBlockNo, thisFrameNo);
-        thisY = xyzrcoPeak(2, thisBlockNo, thisFrameNo);
-        if ~mod(bInf.width,2) % if width is even, put x center at closest .5, else closest integer
-            xyzrcoPeak(1, thisBlockNo, thisFrameNo) = round(thisX) + sign(thisX-round(thisX))*.5;
-        else
-            xyzrcoPeak(1, thisBlockNo, thisFrameNo) = round(thisX);
-            
-        end
-        if ~mod(bInf.height,2) % if height is even, put y center at closest .5, else closest integer
-            xyzrcoPeak(2, thisBlockNo, thisFrameNo) = round(thisY) + sign(thisY-round(thisY))*.5;
-        else
-            xyzrcoPeak(2, thisBlockNo, thisFrameNo) = round(thisY);
-            
-        end
-        
+        % save block-specific registration information
         if ~isempty(params.blockSaveFormat)
             save(fullfile(params.frameCorrDir, sprintf(params.blockSaveFormat,thisBlockNo)), ...
                 'corrValsToSave', 'indX', 'indY', 'indZ', 'indR', 'dateStr','dateNum', ...
