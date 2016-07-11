@@ -19,7 +19,7 @@ function [isSt] = blockComparisonGifs(subj, movieDate, location, whichCompsToSav
 %
 %
 if isempty(location), location = 'L01'; end
-if nargin < 4, whichCompesToSave = ''; end
+if nargin < 4, whichCompsToSave = ''; end
 % load peak locations and other useful information
 movieDateDir = fullfile(jlgDataDir, subj, movieDate);
 
@@ -53,11 +53,11 @@ stack = cropStack(stack);
 % set up a grid for the montage figure and init some figures
 maxBWidth = max(max(sum(s.blockLocations,2),[],1));
 maxBHeight = max(max(sum(s.blockLocations,1),[],2));
-montageGrid = zeros(( maxBHeight + 3) * s.params.mByNBlocks(1), ...
+montageGrid = zeros(5+ ( maxBHeight + 3) * s.params.mByNBlocks(1), ...
     2*s.params.mByNBlocks(2) * (3+ maxBWidth), movieLength);
-diffGrid = zeros(( maxBHeight + 3) * s.params.mByNBlocks(1), ...
+diffGrid = zeros(5+ ( maxBHeight + 3) * s.params.mByNBlocks(1), ...
     s.params.mByNBlocks(2) * (3+ maxBWidth), movieLength);
-overlapGrid = zeros(( maxBHeight + 3) * s.params.mByNBlocks(1), ...
+overlapGrid = zeros(5+ ( maxBHeight + 3) * s.params.mByNBlocks(1), ...
     s.params.mByNBlocks(2) * (3+ maxBWidth), 3, movieLength);
 
 
@@ -128,13 +128,17 @@ for thisFrameNo = 1:nFrames
             thisFrameNo) = [bestBlockRot refBlock];
         
         % plot diff image
-        diffGrid(yStart:yEnd,xStart:xEnd,thisFrameNo) = bestBlockRot - refBlock;
+        diffGrid(yStart:yEnd,xStart:xEnd,thisFrameNo) = (bestBlockRot - refBlock)./max(abs((bestBlockRot(:) - refBlock(:))));
         
         % plot falsecolor image
         overlapGrid(yStart:yEnd,xStart:xEnd,:,thisFrameNo) = cat(3,refBlock,bestBlockRot, bestBlockRot);
         
     end
-  
+    timePoint = round(thisFrameNo/nFrames*size(diffGrid,2));
+    montageGrid(end-3:end,1:timePoint,thisFrameNo) = 1;
+    diffGrid(end-3:end,1:timePoint,thisFrameNo) = 1;
+    overlapGrid(end-3:end,1:timePoint,:,thisFrameNo) = 1;
+    assert(max(diffGrid(:))<=1 && min(diffGrid(:))>=-1);
 end
 
 isSt.overlap = imageSeries(overlapGrid);
