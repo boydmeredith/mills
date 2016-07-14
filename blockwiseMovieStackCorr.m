@@ -100,7 +100,6 @@ p.KeepUnmatched = true;
 parse(p,varargin{:})
 % ----------------------------------------- %
 
-
 fprintf('\nstarting registration for subj: %s on movie from %s \n',subj, movieDate);
 % reassign p.Results to params and get rid of p so it is easier to manage
 % subfields
@@ -110,7 +109,10 @@ end
 params = p.Results;
 clear p;
 
-%parpool;
+% check that a folder for this movie date exists
+if ~exist(fullfile(jlgDataDir,subj,movieDate,params.location),'file')
+    error('There is no folder for this date and subject');
+end
 
 params.subj = subj;
 params.movieDate = movieDate;
@@ -156,12 +158,31 @@ params.rotAngleFromInd = rotAngleFromInd;
 assert(length(params.rotAngleFromInd) <= 255); % make sure that we can represent rotation with uint8
 
 
-
-% load stack (expect gif)
+% load stack 
 movieFname = sprintf('%s__%s__AVERAGE.tif',movieDate,params.location);
 if isempty(params.stackDate),
     params.stackDate =  defaultStackDate(subj);
 end
+
+% enforce that stack and movie have same zoom factor
+movHdrFile = fullfile(jlgDataDir,subj,movieDate,params.location,'ac_001_001.tif');
+stackHdrDirs = dir(fullfile(jlgDataDir, subj, params.stackDate, 'post*stack*'));
+if ismember('post_stack',{stackHdrDirs.name})
+    stackHdrDir = 'post_stack';
+elseif ismember('post-stack',{stackHdrDirs.name})
+    stackHdrDir = 'post-stack';
+elseif ismember('post_stack_001',{stackHdrDirs.name})
+    stackHdrDir = 'post_stack_001';
+end
+stackHdrFile = fullfile(jlgDataDir, subj, params.stackDate, stackHdrDir,'post_stack_001_001.tif');
+% get image headers
+stackHdr = getScanImageHeader(stackHdrFile); movHdr = getScanImageHeader(movHdrFile);
+if ~(stackHdr.scanimage.SI5.zoomFactor == movHdr.scanimage.SI5.zoomFactor)
+    error('Stack and movie have different zoom factors');
+end
+
+
+
 stackPath = fullfile(subj, sprintf('reference_stack_%s.tif',params.stackDate));
 fullStackPath = fullfile(params.dataDir, stackPath);
 moviePath = fullfile(subj, movieFname);
@@ -534,7 +555,9 @@ if ~isempty(params.summarySaveName)
             & isequal(savedParams.rotAngleFromInd,params.rotAngleFromInd) & params.nRSTD==savedParams.nRSTD & params.xRadiusMin==savedParams.xRadiusMin & ...
             params.yRadiusMin==savedParams.yRadiusMin);
 
-        if (hasSameParams || params.useSavedSearchRangeEitherWay) && ismember('params',fields(sfile)) && ismember('params',fields(sfile))
+        if (hasSameParams || params.useSavedSearchRangeEitherWay) && ...
+                ismember('xyzrSearchRange',fields(sfile)) && ...
+                ismember('outliersXY',fields(sfile))
             xyzrSearchRange = sfile.xyzrSearchRange;
             outliersXY      = sfile.outliersXY;
             return
