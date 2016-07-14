@@ -17,20 +17,20 @@ rotXY(2,:)=rotXYOrig(2,:)+yCtr;
 
 
 
-if 1
-    % % plot a colored patch
-    patch(rotXY(1,1:end-2),rotXY(2,1:end-2),lineColor,'parent',ax,'facealpha',.25,'edgecolor','none');
-    % plot outline around patch
-end
+
+% % plot a colored patch
+patch(rotXY(1,1:end-2),rotXY(2,1:end-2),lineColor,'parent',ax,'facealpha',.25,'edgecolor','none');
+% plot outline around patch
 
 
-set(ax,'ydir','reverse')
+
 
 
 hold(ax, 'on');
 if ~isOutlier
     plot(ax,rotXY(1,end-1:end),rotXY(2,end-1:end),'color',lineColor,'linewidth',1);
 else
-    plot(ax,rotXY(1,end-1:end),rotXY(2,end-1:end),'-','color',lineColor,'linewidth',10);
+    plot(ax,rotXY(1,end-1:end),rotXY(2,end-1:end),'-','color',lineColor,'linewidth',5);
 end
 
+set(ax,'ydir','reverse')

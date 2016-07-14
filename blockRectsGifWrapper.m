@@ -25,7 +25,7 @@ if isempty(whichFrames), whichFrames = 1:movieLength; end
 
 midStackSlice = imread(fullStackPath,floor(length(stackInf)/2));
 
-h = figure('visible',doShow,'paperpositionmode','auto','position',[ 0 0 1000 1000]);
+h = figure('visible',doShow,'position',[0 0 900 1000]);
 
 map = [];
 
@@ -44,11 +44,15 @@ image((normalizeToZeroOne(double(midStackSlice),[0 99.5],true).^1.5)*64,'parent'
 xlabel(bgax,'x position');ylabel(bgax,'y position');
 colormap(bgax,bone);
 bgaxPos = get(bgax,'position');
-cbax = axes('parent',h,'position',[.925 bgaxPos(2) .925 bgaxPos(4)],'color','none');
-colormap(cbax,colormapRedBlue);c = colorbar(cbax,'west'); caxis(cbax,[1 length(stackInf)]);set(c,'ydir','rev')
-axis(cbax,'off');
+
 ax = axes('position',get(bgax,'position'),'color','none');
 linkaxes([bgax ax]);
+
+cbax = axes('parent',h,'position',[.875 bgaxPos(2) .875 bgaxPos(4)],'color','none');
+axis(cbax,'off');
+colormap(cbax,colormapRedBlue);
+c = colorbar(cbax,'west'); caxis(cbax,[1 length(stackInf)]);
+
 if doSave, fprintf('\n\tWriting images...');end
 tic
 for thisFrameNo=whichFrames,
@@ -72,7 +76,7 @@ for thisFrameNo=whichFrames,
 
     %%
     pause(.55);
-    
+    set(c,'ydir','rev')
     [~, map] = createGif(h, thisFrameNo, map, saveName);
 
 %%

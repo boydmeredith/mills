@@ -12,7 +12,7 @@ function [pairsPlot] = createPairsPlot(subj, movieDate, location, blockNo, frame
 
 figTitle = sprintf('%s %s block: %03d frame %03d', subj, movieDate, blockNo, frameNo);
 
-blockPath = fullfile(referenceLocalizationDir(subj, date, location),...
+blockPath = fullfile(referenceLocalizationDir(subj, movieDate, location),...
     sprintf('/frame%03d/block%03d.mat', frameNo, blockNo));
 
 blockSt = load(blockPath);
@@ -20,8 +20,8 @@ blockSt = load(blockPath);
 refinfo = imfinfo(fullfile(jlgDataDir, blockSt.stackPath));
 
 refDepth = length(refinfo);
-refHeight = refinfo(1).Height;
-refWidth = refinfo(1).Width;
+maxHeight = blockSt.corrMatSize(1);
+maxWidth = blockSt.corrMatSize(2);
 
 
 
@@ -33,9 +33,6 @@ set(h, 'Position', [90  26 1401 922]);
 if ~strcmp(class(blockSt.corrValsToSave),'double') 
     blockSt.corrValsToSave = double(blockSt.corrValsToSave)/ double(intmax(class(blockSt.corrValsToSave)));
 end
-
-refHeight = 512;
-refWidth = 512;
 
 pairsPlot = makeSubplots(h,3,2,.2,.35,[0 .3 1 .7]);
 linesPlot = makeSubplots(h,4,1,.2,.2,[.05 0 .9 .3]);
@@ -91,7 +88,7 @@ xlabel(linesPlot(4,1),'R');
 % X-Y
 xyAx = pairsPlot(1);
 imagesc(sparse(double(blockSt.indY(indZRPeak)),double(blockSt.indX(indZRPeak)),  ...
-    blockSt.corrValsToSave(indZRPeak), refHeight,refWidth),'parent',xyAx );
+    blockSt.corrValsToSave(indZRPeak), maxHeight,maxWidth),'parent',xyAx );
 ylabel(xyAx,'Y');
 xlabel(xyAx,'X');
 axis(xyAx, 'square'); colorbar(xyAx); 
@@ -102,7 +99,7 @@ hold(xyAx,'on'); scatter(xyAx,xPeak,yPeak,'x');
 % X-Z
 xzAx = pairsPlot(2);
 imagesc(sparse(double(blockSt.indZ(indYRPeak)), double(blockSt.indX(indYRPeak)), ...
-    blockSt.corrValsToSave(indYRPeak), refDepth, refWidth),'parent',xzAx);
+    blockSt.corrValsToSave(indYRPeak), refDepth, maxWidth),'parent',xzAx);
 ylabel(xzAx,'Z');
 xlabel(xzAx,'X');
 axis(xzAx, 'square'); colorbar(xzAx); 
@@ -116,7 +113,7 @@ title(pairsPlot(2), figTitle);
 % X-R
 xrAx = pairsPlot(4);
 imagesc(sparse(double(blockSt.indR(indZYPeak)), double(blockSt.indX(indZYPeak)), ...
-    blockSt.corrValsToSave(indZYPeak), length(blockSt.rotAngleFromInd), refWidth),'parent',xrAx);
+    blockSt.corrValsToSave(indZYPeak), length(blockSt.rotAngleFromInd), maxWidth),'parent',xrAx);
 ylabel(xrAx,'R');
 xlabel(xrAx,'X');
 axis(xrAx, 'square'); colorbar(xrAx); 
@@ -131,7 +128,7 @@ hold(xrAx,'on'); scatter(xrAx,xPeak,rPeak,'x');
 % Y-R
 yrAx = pairsPlot(5);
 imagesc(sparse(double(blockSt.indR(indZXPeak)), double(blockSt.indY(indZXPeak)),  ...
-    blockSt.corrValsToSave(indZXPeak),length(blockSt.rotAngleFromInd), refHeight),'parent',yrAx);
+    blockSt.corrValsToSave(indZXPeak),length(blockSt.rotAngleFromInd), maxHeight),'parent',yrAx);
 ylabel(yrAx,'R');
 xlabel(yrAx,'Y');
 axis(yrAx, 'square'); colorbar(yrAx); 
@@ -142,7 +139,7 @@ hold(yrAx,'on'); scatter(yrAx,yPeak,rPeak,'x');
 % Y-Z
 yzAx = pairsPlot(3)
 imagesc(sparse(double(blockSt.indZ(indXRPeak)), double(blockSt.indY(indXRPeak)), ...
-    blockSt.corrValsToSave(indXRPeak), refDepth, refHeight),'parent',yzAx);
+    blockSt.corrValsToSave(indXRPeak), refDepth, maxHeight),'parent',yzAx);
 xlabel(yzAx,'Y');
 ylabel(yzAx,'Z');
 axis(yzAx, 'square'); colorbar(yzAx); 

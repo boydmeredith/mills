@@ -128,7 +128,8 @@ for thisFrameNo = 1:nFrames
             thisFrameNo) = [bestBlockRot refBlock];
         
         % plot diff image
-        diffGrid(yStart:yEnd,xStart:xEnd,thisFrameNo) = (bestBlockRot - refBlock)./max(abs((bestBlockRot(:) - refBlock(:))));
+        %diffGrid(yStart:yEnd,xStart:xEnd,thisFrameNo) = (bestBlockRot - refBlock)./max(abs((bestBlockRot(:) - refBlock(:))));
+        diffGrid(yStart:yEnd,xStart:xEnd,thisFrameNo) = (bestBlockRot - refBlock)./max(abs(refBlock(:)));
         
         % plot falsecolor image
         overlapGrid(yStart:yEnd,xStart:xEnd,:,thisFrameNo) = cat(3,refBlock,bestBlockRot, bestBlockRot);
@@ -140,16 +141,17 @@ for thisFrameNo = 1:nFrames
     overlapGrid(end-3:end,1:timePoint,:,thisFrameNo) = 1;
     assert(max(diffGrid(:))<=1 && min(diffGrid(:))>=-1);
 end
+diffGrid(end,end,:)=-1;
 
 isSt.overlap = imageSeries(overlapGrid);
 isSt.diff    = imageSeries(diffGrid);
 isSt.montage = imageSeries(montageGrid);
 if ismember('o',whichCompsToSave)
-    isSt.overlap.saveImages(fullfile(corrDir,'blockOverlap'),'imageType','gif','class','uint8','normalizeColors',true);
+    isSt.overlap.saveImages(fullfile(corrDir,'blockOverlap'),'imageType','gif','class','uint8','normalizeColors',true,'overwrite',true);
 end
 if ismember('m',whichCompsToSave)
-    isSt.montage.saveImages(fullfile(corrDir,'blockmontage'),'imageType','gif','class','uint8','normalizeColors',true);
+    isSt.montage.saveImages(fullfile(corrDir,'blockmontage'),'imageType','gif','class','uint8','normalizeColors',true,'overwrite',true);
 end
 if ismember('d',whichCompsToSave)
-    isSt.diff.saveImages(fullfile(corrDir,'blockDiff'),'imageType','gif','class','uint8','normalizeColors',true);
+    isSt.diff.saveImages(fullfile(corrDir,'blockDiff'),'imageType','gif','class','uint8','normalizeColors',true,'overwrite',true);
 end

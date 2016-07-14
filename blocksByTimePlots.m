@@ -1,15 +1,16 @@
-function h = blocksByTimePlots(subj,movieDate,location)
+function h = blocksByTimePlots(subj,movieDate,location,doSave,doShow)
 if isempty(location)
     location = 'L01';
 end
+if doShow, doShow = 'on'; else doShow = 'off'; end
 theRefLocDir = referenceLocalizationDir(subj, movieDate, location);
 s = load(fullfile(theRefLocDir, 'summary.mat'),'xyzrcoPeak','params');
 par = s.params;
 mBlocks = par.mByNBlocks(1);
 nBlocks = par.mByNBlocks(2);
 xyzrcoPeak = s.xyzrcoPeak;
-h = figure; 
-[hh] = makeSubplots(h,2,3,0.15,0.05,[0.005 0.05 .99 .95]);
+h = figure('visible',doShow); 
+[hh] = makeSubplots(h,2,3,0.15,0.1,[0.005 0.05 .99 .95]);
 
 movieLength = size(xyzrcoPeak,3);
 titles = 'xyzrco';
@@ -27,5 +28,11 @@ for dd = 1:size(xyzrcoPeak,1)
     end
 end
 xlabel(ax,'frame #')
-set(h, 'position', [560    23   745   925]);
 linkaxes(hh)
+
+set(h, 'position',[53 5 1220 700], 'paperpositionmode','manual',...
+        'paperunits','inches','paperposition',[0 0 11 8.5],'papersize',[ 11 8.5]);
+
+if doSave,
+    print(h, fullfile(theRefLocDir, 'blocksByTimePlots.pdf'),'-dpdf','-opengl');
+end
