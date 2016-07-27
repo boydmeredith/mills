@@ -95,6 +95,7 @@ if ~isempty(params.searchRangeFigName) && doMakePlot
     imagesc([reshape(z,params.mByNBlocks(1),params.mByNBlocks(2))...
         reshape(xyzrSearchRange(3,:),params.mByNBlocks(1),params.mByNBlocks(2))],'parent',flatM(4,1));
     title(flatM(4,1),'Z'); colorbar('peer',flatM(4,1))
+    caxis(flatM(4,1),[min(params.whichSlices) max(params.whichSlices)]);
     axis(flatM(4,1),'image');
     
     imagesc([reshape(r,params.mByNBlocks(1),params.mByNBlocks(2))...

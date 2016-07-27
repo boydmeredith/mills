@@ -1,0 +1,67 @@
+function plotDriftAllSessions(subject,varargin)
+
+p=inputParser;
+addOptional(p,'meanCenter',false);
+addOptional(p,'plotVar',3);
+addOptional(p,'ignoreEdges',false);
+parse(p,varargin{:});
+
+plotVarNames = 'xyzrco';
+
+sumFiles=ls(fullfile(jlgDataDir, subject, ...
+    '*/L01_referenceLocalization/summary.mat'));
+sumFiles = strsplit(sumFiles,'\n');
+sumFiles(strcmp(sumFiles,''))=[];
+nSummaries = length(sumFiles);
+fig = figure;
+nCols = 7;
+nRows = ceil(nSummaries/nCols);
+hM = makeSubplots(fig, nCols, nRows, .2 , .4, [0.03 .03 .95 .95]);
+set(fig,'position',[1 1 1500 1000]);
+yLabel = [plotVarNames(p.Results.plotVar)];
+if p.Results.meanCenter, yLabel = [yLabel ' (mean-centered)']; end;
+
+interiorIx = setdiff(1:36,[1:6 7 12 13 18 19  24 25 30 31:36]);
+
+nBlocks=36;
+if p.Results.ignoreEdges
+    nBlocks=length(interiorIx);
+end
+cmap = colormapRedBlue;
+
+colorSet = cmap(round(linspace(1,length(colormapRedBlue),nBlocks)),:);
+
+for ss = 1:nSummaries
+    
+    
+
+    thisSumFile = sumFiles{ss};
+    summ = load(thisSumFile,'xyzrcoPeak','params');
+    ax = hM(ss);
+    
+    valToPlot = squeeze(summ.xyzrcoPeak(p.Results.plotVar,:,:));
+    if p.Results.ignoreEdges
+        valToPlot = valToPlot(interiorIx,:);
+    end
+    
+    if p.Results.meanCenter
+        valToPlot =  bsxfun(@minus, valToPlot, mean(valToPlot,2));
+    end
+    set(ax,'ColorOrder',colorSet,'color',[1 1 1]*.7,'xlim',[1 size(valToPlot,2)]);
+    hold(ax,'all');
+    plot(ax, valToPlot','linewidth',1);
+    
+    title(ax,[subject ' ' summ.params.movieDate],'fontsize',10);
+    if mod(ss,nCols)==1, ylabel(ax,yLabel,'fontsize',12); end
+    if ss>nCols*(nRows-1) , xlabel(ax,'frame #'); end;
+    if ~p.Results.meanCenter
+        switch p.Results.plotVar
+            case {1 , 2},
+                set(ax,'ylim',[1 512])
+            case 3,
+                set(ax,'ydir','rev','ylim',[1 51])
+            case 5,
+                set(ax,'ylim',[0 1]);
+        end
+    end
+end

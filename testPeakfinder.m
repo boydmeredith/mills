@@ -1,6 +1,6 @@
 nxc2M = [];
 nxc2MNbrhd = [];
-bestBlockRot = rotateAndSelectBlock(movieFrame, thisBlockLoc, pRes.rotAngleFromInd(indR(peakInd)));
+bestBlockRot = rotateAndSelectBlock(movieFrame, thisBlockLoc, params.rotAngleFromInd(indR(peakInd)));
 
 %%
 NXYTOKEEP = 10000;
@@ -9,7 +9,7 @@ NXYTOKEEP = 10000;
 for zz = 1:length(zRangeToKeep)
     stackSlice = normalizeToZeroOne(stack(:,:,zRangeToKeep(zz)));
     nxc2MNbrhd(:,:,:,zz) = computeBlockImageCorrs(bestBlockRot, ...
-        stackSlice, nbrhdInf, pRes.minCorrOverlap, 'double');
+        stackSlice, nbrhdInf, params.minCorrOverlap, 'double');
     nxc2M(:,:,:,zz) = normxcorr2(bestBlockRot, stackSlice);
     
     
