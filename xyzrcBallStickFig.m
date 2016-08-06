@@ -45,32 +45,43 @@ if size(xyzrcoPeak,1) >= 5
     set(hLegend,'box','off');
     axl = axes('Parent',hLegend.Parent, 'Units',hLegend.Units, 'Position',hLegend.Position, ...
                        'XTick',[] ,'YTick',[], 'Color','none', 'YColor','none', 'XColor','none', 'HandleVisibility','off', 'HitTest','off');
-    title(axl,'correlation');
-    climits = [min(xyzrcoPeak(4,xyzrcoPeak(5,:)~=0)) max(xyzrcoPeak(4,xyzrcoPeak(5,:)~=0))];
+    %title(axl,'correlation');
+    climits = [20 40];
     
 
 else
     markersizes = 500;
-    climits = [min(xyzrcoPeak(4,:)) max(xyzrcoPeak(4,:))];
+    climits = [20 51];
 end
 
 
 %surf(thisFramePeaksGridX,thisFramePeaksGridY,thisFramePeaksGridZ,'facecolor','blue','parent',ballStickAx);
 %alpha(.3)
 
-scatter3(ballStickAx, thisFramePeaks(1,:),thisFramePeaks(2,:),...
-    thisFramePeaks(3,:),...
-    markersizes,...%max(reshape(thisFramePeaks(4,:),[],1),1),...
-    thisFramePeaks(4,:) , 'filled','linewidth',2,'markeredgecolor',[.8 .8 .8]);
+ballColors = thisFramePeaks(3,:);
+
+
+
 
 
 % add dark edges to circles referring to outliers
 if size(xyzrcoPeak,1) == 6,
     outliers = find(thisFramePeaks(6,:));
+    inliers = find(~thisFramePeaks(6,:));
     scatter3(ballStickAx, thisFramePeaks(1,outliers),thisFramePeaks(2,outliers),...
-    thisFramePeaks(3,outliers),...
-    markersizes(outliers),...%max(reshape(thisFramePeaks(4,:),[],1),1),...
-    thisFramePeaks(4,outliers) , 'filled','linewidth',2,'markeredgecolor','k');
+        thisFramePeaks(3,outliers),...
+        markersizes(outliers),...%max(reshape(thisFramePeaks(4,:),[],1),1),...
+        ballColors(outliers) , 'filled','linewidth',2,'markeredgecolor','k');
+
+    scatter3(ballStickAx, thisFramePeaks(1,inliers),thisFramePeaks(2,inliers),...
+        thisFramePeaks(3,inliers),...
+        markersizes(inliers),...%max(reshape(thisFramePeaks(4,:),[],1),1),...
+        ballColors(inliers) , 'filled','linewidth',2,'markeredgecolor','k');
+else
+    scatter3(ballStickAx, thisFramePeaks(1,:),thisFramePeaks(2,:),...
+        thisFramePeaks(3,:),...
+        markersizes,...%max(reshape(thisFramePeaks(4,:),[],1),1),...
+        ballColors , 'filled','linewidth',2,'markeredgecolor',[.8 .8 .8]);
 end
 
 
@@ -88,8 +99,8 @@ set(ballStickAx,'xdir','rev','xlim',xlimits,...
 axis(ballStickAx,'square');
 set(ballStickFig,'Position',[560         227        1029         721]);
 xlabel(ballStickAx,'x'); ylabel(ballStickAx,'y'); zlabel(ballStickAx,'z');
-colormap(ballStickAx, hot); c= colorbar(ballStickAx);
-c.Label.String = 'Rotation Angle';
+colormap(ballStickAx, colormapRedBlue); c= colorbar(ballStickAx); set(c,'ydir','rev');
+%c.Label.String = 'Rotation Angle';
 
 
 

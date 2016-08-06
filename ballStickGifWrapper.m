@@ -42,7 +42,7 @@ for ff = whichFrames
         thisViewName = viewNames{vv};
         set(findobj(h,'type','axes'),'View',viewPoints.(thisViewName))
         if doShow, set(h,'visible','on'); end
-        [~, map] = createGif(h, ff, map, fullfile(theRefLocDir, ['ballStick_' thisViewName '.gif']));
+        [~, map] = createGif(h, ff, map, .01, fullfile(theRefLocDir, ['ballStick_' thisViewName '.gif']));
         pause(.5)
         
     end
