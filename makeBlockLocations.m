@@ -73,4 +73,5 @@ assert(imgW + borderW == imgWOrig);
 
 % pad blockLocations with borderW and borderH
 blockLocations = padarray(blockLocations,[(borderH/2) (borderW/2)],0);
-assert(isequal(size(blockLocations), [imgHOrig imgWOrig prod(mnBars)]));
+[blockLocH, blockLocW, blockLocD] = size(blockLocations);
+assert(isequal([blockLocH, blockLocW, blockLocD], [imgHOrig imgWOrig prod(mnBars)]));
