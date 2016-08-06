@@ -120,13 +120,9 @@ if isempty(params.dataDir)
     params.dataDir = jlgDataDir;
 end
 
-
-
-if isempty(params.nbrhdXMargin) || isempty(params.nbrhdYMargin)
-    nbrhdInf = [];
-else
-    nbrhdInf = struct('xMargin', params.nbrhdXMargin, 'yMargin', params.nbrhdYMargin);
-end
+nbrhdInf = struct('xMargin', params.nbrhdXMargin, 'yMargin', params.nbrhdYMargin);
+nbrhdInf.minOverlap = params.minCorrOverlap;
+nbrhdInf.flagZNFromEdge = params.flagZNFromEdge;
 
 % if only one number is given for mByNBlocks, repeat it for both dimensions
 if size(params.mByNBlocks) == 1, params.mByNBlocks = repmat(params.mByNBlocks, 1, 2); end
@@ -151,6 +147,7 @@ params.coarseRotAngles(params.coarseRotAngles == 0) = [];
 fineRotAngles          = -(params.fineRotWindowRange/2): params.fineRotStepSz ...
     :(params.fineRotWindowRange/2);
 fineRotAngles          = round(fineRotAngles, params.angleSigFig);
+nbrhdInf.rOffToKeep    = fineRotAngles;
 rotAngleFromInd        = params.coarseRotAngles(1):params.fineRotStepSz ...
     :params.coarseRotAngles(end);
 rotAngleFromInd        = round(rotAngleFromInd, params.angleSigFig);
@@ -181,17 +178,14 @@ if ~(stackHdr.scanimage.SI5.zoomFactor == movHdr.scanimage.SI5.zoomFactor)
     error('Stack and movie have different zoom factors');
 end
 
-
-
+% load stack
 stackPath = fullfile(subj, sprintf('reference_stack_%s.tif',params.stackDate));
 fullStackPath = fullfile(params.dataDir, stackPath);
 moviePath = fullfile(subj, movieFname);
 fullMoviePath = fullfile(params.dataDir, moviePath);
 assert(exist(fullMoviePath,'file') & exist(fullStackPath,'file'));
-
 stackInf  = imfinfo(fullStackPath);
 stackDim.depth = length(stackInf);
-
 if ~isempty(params.loadedStack)
     stack = params.loadedStack;
 else
@@ -202,13 +196,11 @@ else
 end
 rmfield(params,'loadedStack');
 
-% load movie (expect gif)
-
+% load movie
 movieInf = imfinfo(fullMoviePath);
 movieHeight = movieInf(1).Height;
 movieWidth  = movieInf(1).Width;
 movieLength = length(movieInf);
-
 if ~isempty(params.loadedMovie)
     movie = params.loadedMovie;
 else
@@ -248,14 +240,16 @@ if isempty(params.whichSlices), params.whichSlices = 1:stackDim.depth; end
 blockLocations = makeBlockLocations(movieHeight, movieWidth, ...
     params.mByNBlocks, params.blockOverlap, max(params.coarseRotAngles));
 
-
 % initialize matrix to store peak of correlations
 xyzrcoPeak = zeros(6,params.nBlocks,movieLength);
 xyzrSearchRange = zeros(5,params.nBlocks);
 
+% check is a summary file exists for this analysis and make one if it
+% doesn't
 if ~isempty(params.summarySaveName)
     summaryPath = fullfile(params.corrDir, params.summarySaveName);
     if exist(summaryPath,'file')
+        % if the file exists, append to it so that we keep the search range
         save(summaryPath,'xyzrcoPeak', 'blockLocations','rotAngleFromInd',...
         'stackPath','moviePath','dateStr', 'dateNum','params','stackDim',...
         '-append');
@@ -265,6 +259,7 @@ if ~isempty(params.summarySaveName)
     end
     summfile = matfile(summaryPath,'writable',true);
 end
+
 
 % ------ iterate through the frames of the movie ------ %
 for ff = 1:length(params.whichFrames),
@@ -282,7 +277,8 @@ for ff = 1:length(params.whichFrames),
     end
     
     if ff == 1 
-        [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocations, stack, params);
+        [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, ...
+            blockLocations, stack, nbrhdInf, params);
     end
     
     % ----------------- iterate through the blocks to keep values ------------------- %
@@ -291,132 +287,18 @@ for ff = 1:length(params.whichFrames),
         % we can determine how many values will be in the correlation matrix
         thisBlockNo   = params.whichBlocks(bb);
         thisBlockLoc  = blockLocations(:,:,thisBlockNo);
-        bInf          = getBlockInf(thisBlockLoc);
-        % compute size of full correlation matrix based on block info
-        corrMatSize = [bInf.height + stackDim.height - 1, bInf.width + stackDim.width - 1];
-        
-        % === Fill in correlations for neighborhood around peak ==== %
-        % -----------------------------------------------------------%
-        if ~isempty(nbrhdInf)
-            nbrhdInf.xCtr = xyzrSearchRange(1,thisBlockNo);
-            nbrhdInf.yCtr = xyzrSearchRange(2,thisBlockNo);
-        end
-        
-        % specify a range of z values and rotation angles to save in the
-        % persistent matrix
-        
-        thisNbrhdCtrZ = xyzrSearchRange(3,thisBlockNo);
-        thisNbrhdCtrR = xyzrSearchRange(4,thisBlockNo);
-        
-        if outliersXY(thisBlockNo),
-            thisNZToKeep = params.nZToKeepOutlier;
-        else
-            thisNZToKeep = params.nZToKeepInlier;
-        end
-        
-        zRangeToKeep = max(1,thisNbrhdCtrZ-ceil(thisNZToKeep/2)) : ...
-            min(stackDim.depth,thisNbrhdCtrZ+ceil(thisNZToKeep/2));
-        thisZRangeToCheck = zRangeToKeep;
-        
-        rotToKeep = fineRotAngles + round(thisNbrhdCtrR,params.angleSigFig);
-        rotToKeep = round(rotToKeep, params.angleSigFig);
-        rotToKeep(~ismember(rotToKeep,params.rotAngleFromInd)) = [];
-        rotToKeep(rotToKeep==0) = [];
-        
-        
-        % create indices for x y z r to keep
-        nInd = thisNZToKeep * length(rotToKeep) * params.nXYToKeep;
-        indZ = zeros(nInd,1,'uint8');
-        indR = zeros(nInd,1,'uint8');
-        indX = zeros(nInd,1,'uint16');
-        indY = zeros(nInd,1,'uint16');
-        corrValsToSave = zeros(nInd,1,params.corrType);
-        
         % Loop through the specified range of z values and angles
         fprintf('computing correlations in peak neighborhood for block %03i...\n',thisBlockNo);
-        nn = 1;
-        zEdgeFlag = true;
-        while zEdgeFlag && ~isempty(thisZRangeToCheck)
-            for zz = 1:length(thisZRangeToCheck)
-                thisSliceNo = thisZRangeToCheck(zz);
-                stackSlice = stack(:,:,thisSliceNo);
-                for rr = rotToKeep
-                    
-                    % --- most important lines of the function! --- %
-                    % rotate the block according to rr
-                    blockRot = rotateAndSelectBlock(movieFrame, bInf, rr);
-                    
-                    % use find to get y and x indices as well as the values
-                    % themselves
-                    [yIx, xIx, thisCorr] = find(computeBlockImageCorrs(blockRot, ...
-                        stackSlice, nbrhdInf, params.minCorrOverlap, 'double'));
-                    
-                    % don't try to store correlations if we don't find any
-                    %(bc we are using a uint and all correlations are <= 0)
-                    if isempty(thisCorr), continue; end
-                    % --------------------------------------------- %
-                    
-                    % get the indices of the top nXYToKeep correlations
-                    [~, thisCorrSortIx] = sort(thisCorr,'descend');
-                    
-                    thisCorrXYToKeepIx  = thisCorrSortIx(1:min(length(thisCorr), params.nXYToKeep));
-                    
-                    % determine where to store these newly computed values
-                    storeInd = nn:nn+length(thisCorrXYToKeepIx)-1;
-                    
-                    % store the x,y,z,r indices and the values themselves for the
-                    % top nXYToKeep correlations
-                    indX(storeInd) = uint16(xIx(thisCorrXYToKeepIx));
-                    indY(storeInd) = uint16(yIx(thisCorrXYToKeepIx));
-                    indZ(storeInd) = uint8(thisSliceNo);
-                    indR(storeInd) = uint8(find(params.rotAngleFromInd == rr));
-                    % convert correlations to desired type and store them
-                    if strcmp(params.corrType,'double')
-                        corrValsToSave(storeInd) = thisCorr(thisCorrXYToKeepIx);
-                    else
-                        corrValsToSave(storeInd) = cast(thisCorr(thisCorrXYToKeepIx) *...
-                            double(intmax(params.corrType)), params.corrType);
-                    end
-                    
-                    % increment index counter
-                    nn = storeInd(end)+1;
-                end
-            end
-            
-            
-            % get the overall peak for this block/frame
-            [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, params);
-            % if we don't find any peak, get outta here
-            if isempty(cPeak), break; end
-                
-            % check to see if the best z match is too close to an edge
-            zTooSmall = find(zRangeToKeep==indZ(peakInd))-1 <= params.flagZNFromEdge;
-            zTooBig  = length(zRangeToKeep)-find(zRangeToKeep==indZ(peakInd)) <= params.flagZNFromEdge;
-            if zTooBig,
-                thisZRangeToCheck = zRangeToKeep(end) + (1:params.flagZNFromEdge);
-            elseif zTooSmall,
-                thisZRangeToCheck = zRangeToKeep(1) - (1:params.flagZNFromEdge);
-            end
-            zEdgeFlag =  zTooSmall | zTooBig ;
-            thisZRangeToCheck(~ismember(thisZRangeToCheck,params.whichSlices)) = [];
-            zRangeToKeep = sort([zRangeToKeep thisZRangeToCheck]);
-        end
-        
-        % transform x,y from corrMat space to reference space
-        blkCtrInRefX  = double(indX(peakInd)) - (bInf.width-1)/2;
-        blkCtrInRefY  = double(indY(peakInd)) - (bInf.height-1)/2;
-        % flag best z and r values that are near edge of computed window
-        rEdgeFlag = indR(peakInd)-find(params.rotAngleFromInd==rotToKeep(1)) <= params.flagRNFromEdge | ...
-            find(params.rotAngleFromInd==rotToKeep(end))-indR(peakInd) <= params.flagRNFromEdge;
+        [thisXyzrcoPeak, blockCorrs] = localizeBlockInStackNbrhd(thisBlockLoc, ...
+            movieFrame, stack, nbrhdInf, 'rotAngleFromInd', params.rotAngleFromInd,...
+            'angleSigFig',params.angleSigFig, 'nXYToKeep',params.nXYToKeep,...
+            'flagRNFromEdge',params.flagRNFromEdge, 'flagZNFromEdge', params.flagZNFromEdge,...
+            'whichSlices', params.whichSlices,'fineRotStepSz', params.fineRotStepSz);
         
         % save absolute peak
-        if ~isempty(cPeak)
-            if ~strcmp(params.corrType,'double'),
-                cPeak = double(cPeak)/double(intmax(params.corrType));
-            end
-            xyzrcoPeak(:,thisBlockNo, thisFrameNo) = [blkCtrInRefX, blkCtrInRefY, ...
-                double(indZ(peakInd)), params.rotAngleFromInd(indR(peakInd)),...
-                cPeak, zEdgeFlag | rEdgeFlag]';
+        if ~isempty(thisXyzrcoPeak)
+            xyzrcoPeak(:,thisBlockNo, thisFrameNo) = thisXyzrcoPeak;
+        
         else % if no good peak found, use the center of the search range
             xyzrcoPeak(:, thisBlockNo, thisFrameNo) = [xyzrSearchRange(:,thisBlockNo); nan; 1];
             % round the x and y centers according to the dimensions of the
@@ -430,11 +312,16 @@ for ff = 1:length(params.whichFrames),
             xyzrcoPeak(2, thisBlockNo, thisFrameNo) = round(thisY) + ~mod(bInf.height,2)*sign(thisY-round(thisY))*.5;
         end
         
+        if strcmp(params.corrType,'double')
+            blockCorrs.corrValsToSave = cast(blockCorrs.corrValsToSave *...
+                double(intmax(params.corrType)), params.corrType);
+        end
+        
         % save block-specific registration information
         if ~isempty(params.blockSaveFormat)
-            save(fullfile(params.frameCorrDir, sprintf(params.blockSaveFormat,thisBlockNo)), ...
-                'corrValsToSave', 'indX', 'indY', 'indZ', 'indR', 'dateStr','dateNum', ...
-                'stackPath','rotAngleFromInd','thisBlockLoc','corrMatSize');
+            blockFileName = fullfile(params.frameCorrDir, sprintf(params.blockSaveFormat,thisBlockNo));
+            save(blockFileName, '-struct', 'blockCorrs');
+            save(blockFileName, 'dateStr','dateNum', 'stackPath','rotAngleFromInd');
         end
     end
     
@@ -456,87 +343,21 @@ set(0, 'DefaultFigureVisible', 'on');
 end
 
 
-
-
-
-
-
 %%%%%%% END OF MAIN FUNCTION %%%%%%%%
 %========================================================================%
 %%%%%%% HELPER FUNCTIONS %%%%%%%%
 
 
-function [cPeak, peakInd] = findPeakCorrVal(corrValsToSave, indX, indY, indZ, indR, params)
-
-peakInd = find(corrValsToSave == max(corrValsToSave));
-cPeak   = max(corrValsToSave) ;
-nPeaks  = length(peakInd);
-
-% if there is only one peak, return it without any further computation
-if nPeaks==1, return; end
-% if there are more than 10 peaks or the max value is 0, just give up
-if nPeaks > 10 || cPeak == 0 || isnan(cPeak), cPeak = []; peakInd = []; return; end
 
 
-%if nPeaks==1, return, end
-
-pCorrValMean = zeros(nPeaks,1);
-
-for pp = 1:nPeaks
-    thisPeakInd = peakInd(pp);
-    
-    zPNbrhd = indZ > indZ(thisPeakInd) - 3 & indZ < indZ(thisPeakInd) + 3;
-    xPNbrhd = indX > indX(thisPeakInd) - 5 & indX < indX(thisPeakInd) + 5;
-    yPNbrhd = indY > indY(thisPeakInd) - 5 & indY < indY(thisPeakInd) + 5;
-    rPNbrhd = indR > indR(thisPeakInd) - 1/params.fineRotStepSz & ...
-        indR < indR(thisPeakInd) + 1/params.fineRotStepSz;
-    
-    peakNbrhd = xPNbrhd & yPNbrhd & zPNbrhd & rPNbrhd;disp(sum(peakNbrhd))
-    
-    pCorrValMean(pp) = mean(corrValsToSave(peakNbrhd));
-    
-end
-
-peakInd = peakInd(find(pCorrValMean == max(pCorrValMean)));
-% break ties randomly
-if length(peakInd) > 1
-    warning('WARNING: broke tie between multiple peaks randomly')
-    [~, randIx] = max(randn(1,length(peakInd)));
-    peakInd = peakInd(randIx);
-end
-cPeak   = corrValsToSave(peakInd);
-end
-
-function [peaks yPeakInRef xPeakInRef rPeakInRef] = getPeakCorrCoords(corrMat, blksz, rotationAngles)
-peaks = ind2sub(size(corrMat),find(corrMat==max(corrMat(:))));
-yPeakInRef = yPeak - blksz + 1;
-xPeakInRef = xPeak - blksz + 1;
-rPeakInRef = rotationAngles(rPeak);
-end
 
 
-function [starts ends] = getRangeToCheck(bestIx, maxIx, nToKeep)
-% determine the window of different z values to look in
-starts  = bestIx-(nToKeep-1)/2;
-ends    = bestIx+(nToKeep-1)/2;
-if starts < 1
-    ends = ends-(starts-1);
-    starts = 1;
-elseif ends > maxIx
-    starts = starts-(ends-maxIx);
-    ends = maxIx;
-end
-end
-
-
-function [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocations, stack, params)
+function [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocations, stack, ...
+    nbrhdInf, params)
 % function [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, params)
 
-if isempty(params.searchRangeXMargin) || isempty(params.searchRangeYMargin)
-    nbrhdInf = [];
-else
-    nbrhdInf = struct('xMargin', params.searchRangeXMargin, 'yMargin', params.searchRangeYMargin);
-end
+nbrhdInfNoMargin = rmfield(nbrhdInf,'xMargin');
+nbrhdInfNoMargin = rmfield(nbrhdInfNoMargin,'yMargin');
 
 if ~isempty(params.summarySaveName)
     summaryPath = fullfile(params.corrDir, params.summarySaveName);
@@ -615,7 +436,7 @@ for bb = 1:length(params.whichBlocks)
         thisSliceNo = params.whichSlices(zz);
         stackSlice = stack(:,:,thisSliceNo);
         frameCorrVolNoRot(:,:,thisSliceNo) = computeBlockImageCorrs(block, ...
-            stackSlice, [], params.minCorrOverlap, 'double');
+            stackSlice, nbrhdInfNoMargin, 'double');
     end
     toc
     
@@ -693,12 +514,8 @@ for bb = 1:length(params.whichBlocks)
     % use the block z searchRange that we just computed above
     bestStackSliceNoRot = stack(:,:,xyzSearchRange(3,thisBlockNo));
     % set up x and y ctr
-    if ~isempty(nbrhdInf)
-        nbrhdInf.xCtr = xyzSearchRange(1,thisBlockNo);
-        nbrhdInf.yCtr = xyzSearchRange(2,thisBlockNo);
-    end
-    
-    
+    nbrhdInf.xCtr = xyzSearchRange(1,thisBlockNo);
+    nbrhdInf.yCtr = xyzSearchRange(2,thisBlockNo);
     
     % preallocate matrix for rotation angles
     frameCorrVolRot = zeros(bInf.height+stackDim.height-1,bInf.width+stackDim.width-1,...
@@ -710,7 +527,7 @@ for bb = 1:length(params.whichBlocks)
         
         blockRot = rotateAndSelectBlock(movieFrame, bInf, rotAngle);
         frameCorrVolRot(:,:,rr) = computeBlockImageCorrs(blockRot, ...
-            bestStackSliceNoRot, nbrhdInf, params.minCorrOverlap, 'double');
+            bestStackSliceNoRot, nbrhdInf, 'double');
         
     end
     toc
