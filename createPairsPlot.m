@@ -1,5 +1,5 @@
 function [pairsPlot] = createPairsPlot(subj, movieDate, location, blockNo, frameNo)
-% function [pairsPlot] = createPairsPlot(subj, movieDate, blockNo, frameNo)
+% function [pairsPlot] = createPairsPlot(subj, movieDate, location, blockNo, frameNo)
 %
 % Plots correlation values around the peak for 2 and 1 dimension
 % combinations of x,y,z,r
