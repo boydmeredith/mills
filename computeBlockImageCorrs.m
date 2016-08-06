@@ -1,4 +1,4 @@
-function [corrMat] = computeBlockImageCorrs(block, reference, nbrhdInf, minOverlap, corrType)
+function [corrMat] = computeBlockImageCorrs(block, reference, nbrhdInf, corrType)
 % corrMat = computeBlockImageCorrs(block, reference, corrType); compute the
 % normalized 2d cross correlation between a block and a reference. The
 % block is expected to be smaller than the reference. 
@@ -7,12 +7,9 @@ function [corrMat] = computeBlockImageCorrs(block, reference, nbrhdInf, minOverl
 % block      -      An image selected from a movie frame that we want to
 %                   register to the reference
 % reference  -      An image in which to look for a match of the block
-% minOverlap -      Specifies the minimal amount of overlap between the
-%                   block and the reference to keep in the correlation
-%                   matrix
 % nbrhdInf   -      A struct containing information about where we expect
 %                   to find the block in the reference with fields
-%                       xCtr, yCtr, xMargin, yMargin
+%                       xCtr, yCtr, xMargin, yMargin, minOverlap
 % corrType   -      A variable type for storage of the correlation matrix
 
 
@@ -24,16 +21,19 @@ function [corrMat] = computeBlockImageCorrs(block, reference, nbrhdInf, minOverl
 corrMat = zeros(blockHeight+refHeight-1, blockWidth+refWidth-1);
 [corrMatHeight, corrMatWidth] = size(corrMat);
 
-if minOverlap <= 1
-    minOverlap = blockHeight * blockWidth * minOverlap ; 
-else
-    minOverlap = ceil(minOverlap);
+if isfield(nbrhdInf,'minOverlap') && nbrhdInf.minOverlap <= 1
+    minOverlap = blockHeight * blockWidth * nbrhdInf.minOverlap ; 
+elseif isfield(nbrhdInf,'minOverlap')
+    minOverlap = ceil(nbrhdInf.minOverlap);
+else 
+    minOverlap = 0;
 end
 C = repmat(min(min(1:corrMatWidth,  corrMatWidth:-1:1),blockWidth), corrMatHeight,1);
 R = repmat(min(min(1:corrMatHeight, corrMatHeight:-1:1),blockHeight)', 1,corrMatWidth);
-legalOverlaps = C.*R > minOverlap;
+legalOverlaps = C.*R >= minOverlap;
 
-if isempty(nbrhdInf)
+if ~isfield(nbrhdInf,'xMargin') || ~isfield(nbrhdInf, 'yMargin') || ...
+        ~isfield(nbrhdInf,'xCtr') || ~isfield(nbrhdInf, 'yCtr')
     corrMat = normxcorr2(block, reference);
 else
     
