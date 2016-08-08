@@ -33,6 +33,7 @@ R = repmat(min(min(1:corrMatHeight, corrMatHeight:-1:1),blockHeight)', 1,corrMat
 legalOverlaps = C.*R >= minOverlap;
 
 if ~isfield(nbrhdInf,'xMargin') || ~isfield(nbrhdInf, 'yMargin') || ...
+    (isempty(nbrhdInf.xMargin) && isempty(nbrhdInf.yMargin)) || ...
         ~isfield(nbrhdInf,'xCtr') || ~isfield(nbrhdInf, 'yCtr')
     corrMat = normxcorr2(block, reference);
 else

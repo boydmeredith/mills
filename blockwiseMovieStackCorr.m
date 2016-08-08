@@ -76,20 +76,30 @@ addOptional(p, 'searchRangeFigName','searchRangeFig.pdf');
 
 addOptional(p,'showFigs','off',@(x) any(strcmp({'on','off'},x)));
 
-addOptional(p, 'xyzrSearchRangeSaveName','xyzrSearchRange.mat',@isstr)
 addOptional(p, 'useSavedSearchRange', true, @islogical);
 addOptional(p, 'useSavedSearchRangeEitherWay', false, @islogical);
+
 addOptional(p, 'nbrhdXMargin', 10, @isnumeric);
 addOptional(p, 'nbrhdYMargin', 10, @isnumeric);
-addOptional(p, 'searchRangeXMargin', 10, @isnumeric);
-addOptional(p, 'searchRangeYMargin', 10, @isnumeric);
 addOptional(p, 'minCorrOverlap', .8, @isnumeric);
+
+addOptional(p, 'useXYSearchRangeFromDate', []);
+addOptional(p, 'searchRangeXMargin', 50, @isnumeric);
+addOptional(p, 'searchRangeYMargin', 50, @isnumeric);
+
+
+
+% for defining outliers when setting up search range
 addOptional(p, 'nRSTD', 8)
 addOptional(p,'xRadiusMin',4,@isnumeric);
 addOptional(p,'yRadiusMin',4,@isnumeric);
 
+% will flag as oddballs
 addOptional(p, 'flagZNFromEdge', 2)
 addOptional(p, 'flagRNFromEdge', 2)
+
+
+
 
 
 
@@ -155,7 +165,7 @@ params.rotAngleFromInd = rotAngleFromInd;
 assert(length(params.rotAngleFromInd) <= 255); % make sure that we can represent rotation with uint8
 
 
-% load stack 
+% load stack
 movieFname = sprintf('%s__%s__AVERAGE.tif',movieDate,params.location);
 if isempty(params.stackDate),
     params.stackDate =  defaultStackDate(subj);
@@ -251,11 +261,11 @@ if ~isempty(params.summarySaveName)
     if exist(summaryPath,'file')
         % if the file exists, append to it so that we keep the search range
         save(summaryPath,'xyzrcoPeak', 'blockLocations','rotAngleFromInd',...
-        'stackPath','moviePath','dateStr', 'dateNum','params','stackDim',...
-        '-append');
+            'stackPath','moviePath','dateStr', 'dateNum','params','stackDim',...
+            '-append');
     else
         save(summaryPath,'xyzrcoPeak', 'blockLocations','rotAngleFromInd',...
-        'stackPath','moviePath','dateStr', 'dateNum','params','stackDim');
+            'stackPath','moviePath','dateStr', 'dateNum','params','stackDim');
     end
     summfile = matfile(summaryPath,'writable',true);
 end
@@ -276,7 +286,7 @@ for ff = 1:length(params.whichFrames),
         mkdir(params.frameCorrDir);
     end
     
-    if ff == 1 
+    if ff == 1
         [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, ...
             blockLocations, stack, nbrhdInf, params);
     end
@@ -298,7 +308,7 @@ for ff = 1:length(params.whichFrames),
         % save absolute peak
         if ~isempty(thisXyzrcoPeak)
             xyzrcoPeak(:,thisBlockNo, thisFrameNo) = thisXyzrcoPeak;
-        
+            
         else % if no good peak found, use the center of the search range
             xyzrcoPeak(:, thisBlockNo, thisFrameNo) = [xyzrSearchRange(:,thisBlockNo); nan; 1];
             % round the x and y centers according to the dimensions of the
@@ -354,10 +364,19 @@ end
 
 function [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocations, stack, ...
     nbrhdInf, params)
-% function [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, params)
+% function [xyzrSearchRange] = getSearchRange(movieFrame, blockLocations, stack, ...
+% nbrhdInf, params)
 
-nbrhdInfNoMargin = rmfield(nbrhdInf,'xMargin');
-nbrhdInfNoMargin = rmfield(nbrhdInfNoMargin,'yMargin');
+
+% x and y leash to use for setting z search range; only comes into play if
+% the option useXYSearchRangeFromDate is set to true
+initialNbrhdInf.xMargin = params.searchRangeXMargin;
+initialNbrhdInf.yMargin = params.searchRangeYMargin;
+if ~isempty(params.useXYSearchRangeFromDate)
+    prevSummaryFile = fullfile(referenceLocalizationDir(params.subj, ...
+        params.useXYSearchRangeFromDate, params.location), params.summarySaveName);
+    prevSearchRange = load(prevSummaryFile, 'xyzrSearchRange');
+end
 
 if ~isempty(params.summarySaveName)
     summaryPath = fullfile(params.corrDir, params.summarySaveName);
@@ -375,7 +394,7 @@ if ~isempty(params.summarySaveName)
             & savedParams.rSearchRangeUseFit == params.rSearchRangeUseFit & isequal(savedParams.coarseRotAngles,params.coarseRotAngles) ...
             & isequal(savedParams.rotAngleFromInd,params.rotAngleFromInd) & params.nRSTD==savedParams.nRSTD & params.xRadiusMin==savedParams.xRadiusMin & ...
             params.yRadiusMin==savedParams.yRadiusMin);
-
+        
         if (hasSameParams || params.useSavedSearchRangeEitherWay) && ...
                 ismember('xyzrSearchRange',fields(sfile)) && ...
                 ismember('outliersXY',fields(sfile))
@@ -383,7 +402,7 @@ if ~isempty(params.summarySaveName)
             outliersXY      = sfile.outliersXY;
             return
         else
-            fprintf('Parameters did not match previously computed searchRange. Recomputing...');
+            fprintf('Parameters did not match previously computed . Recomputing...');
         end
     end
 end
@@ -405,16 +424,17 @@ end
 
 % ------------ get initial z  estimate for each block --------------- %
 fprintf('getting initial searchRange on z for all blocks...\n');
-bestZData    = zeros(1,params.nBlocks);
-bestZFit     = zeros(1,params.nBlocks);
-bestRData    = zeros(1,params.nBlocks);
-bestRFit     = zeros(1,params.nBlocks);
-bestXCtrData  = zeros(1,params.nBlocks);
-bestYCtrData  = zeros(1,params.nBlocks);
-bestXCtrDataRot = zeros(1,params.nBlocks);
-bestYCtrDataRot = zeros(1,params.nBlocks);
-blockHeights = zeros(1,params.nBlocks);
-blockWidths  = zeros(1,params.nBlocks);
+bestZData    = nan(1,params.nBlocks);
+bestZFit     = nan(1,params.nBlocks);
+bestRData    = nan(1,params.nBlocks);
+bestRFit     = nan(1,params.nBlocks);
+bestXCtrData  = nan(1,params.nBlocks);
+bestYCtrData  = nan(1,params.nBlocks);
+bestCorrData  = nan(1,params.nBlocks);
+bestXCtrDataRot = nan(1,params.nBlocks);
+bestYCtrDataRot = nan(1,params.nBlocks);
+blockHeights = nan(1,params.nBlocks);
+blockWidths  = nan(1,params.nBlocks);
 
 for bb = 1:length(params.whichBlocks)
     
@@ -425,6 +445,11 @@ for bb = 1:length(params.whichBlocks)
     bInf         = getBlockInf(thisBlockLoc);
     block        = movieFrame(bInf.indY,bInf.indX);
     
+    if exist('prevSearchRange','var')
+        initialNbrhdInf.xCtr = prevSearchRange.xyzrSearchRange(1,thisBlockNo);
+        initialNbrhdInf.yCtr = prevSearchRange.xyzrSearchRange(2,thisBlockNo);
+    end
+    
     fprintf('computing normxcorr2 for block %03i z estimate...\n',thisBlockNo);
     tic
     
@@ -432,11 +457,13 @@ for bb = 1:length(params.whichBlocks)
     frameCorrVolNoRot = zeros(bInf.height+stackDim.height-1,bInf.width+stackDim.width-1,...
         stackDim.depth);
     
+    % look for best correlation with all slices of interest to set search
+    % range
     for zz = 1:length(params.whichSlices),
         thisSliceNo = params.whichSlices(zz);
         stackSlice = stack(:,:,thisSliceNo);
         frameCorrVolNoRot(:,:,thisSliceNo) = computeBlockImageCorrs(block, ...
-            stackSlice, nbrhdInfNoMargin, 'double');
+            stackSlice, initialNbrhdInf, 'double');
     end
     toc
     
