@@ -4,7 +4,14 @@ p=inputParser;
 addOptional(p,'meanCenter',false);
 addOptional(p,'plotVar',3);
 addOptional(p,'ignoreEdges',false);
+addOptional(p,'whichBlocks',[]);
 parse(p,varargin{:});
+
+if isempty(p.Results.whichBlocks)
+    whichBlocks = 1:36;
+else
+    whichBlocks = p.Results.whichBlocks;
+end
 
 plotVarNames = 'xyzrco';
 
@@ -31,6 +38,9 @@ cmap = colormapRedBlue;
 
 colorSet = cmap(round(linspace(1,length(colormapRedBlue),nBlocks)),:);
 
+plotVal = [];
+dateVal = [];
+
 for ss = 1:nSummaries
     
     
@@ -39,7 +49,7 @@ for ss = 1:nSummaries
     summ = load(thisSumFile,'xyzrcoPeak','params');
     ax = hM(ss);
     
-    valToPlot = squeeze(summ.xyzrcoPeak(p.Results.plotVar,:,:));
+    valToPlot = squeeze(summ.xyzrcoPeak(p.Results.plotVar,whichBlocks,:));
     if p.Results.ignoreEdges
         valToPlot = valToPlot(interiorIx,:);
     end
@@ -64,4 +74,12 @@ for ss = 1:nSummaries
                 set(ax,'ylim',[0 1]);
         end
     end
+    
+    dateVal = [dateVal; datenum(strrep(strrep(sumFiles{ss},[fullfile(jlgDataDir, subject) '/'],''),'/L01_referenceLocalization/summary.mat',''))];
+    plotVal = [plotVal; valToPlot(1,1)];
 end
+
+linkaxes(hM(1:nSummaries));
+
+
+figure;plot(dateVal,plotVal,'.-')
