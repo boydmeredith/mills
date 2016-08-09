@@ -107,9 +107,9 @@ for cc = whichClusters
         try
             cellfile  = load(nS.cellFileNameFcn(cc,bb),'rois');
         catch
-            warning(['Warning: aborting without finishing. Could not find'...
+            warning(['Warning: Could not find'...
                 'cluster file for cluster %03d, block %03d'],cc,bb);
-            return
+            continue
         end
         assert(isequal(cImSz, [size(cellfile.rois,1), size(cellfile.rois,2)]));
         
@@ -148,6 +148,7 @@ for cc = whichClusters
             rotatedRoiW(:,:,ww) = rotateAndSelectBlock(roiWPadded(:,:,ww),...
                 roiWLoc,bestAngle);
         end
+        
         rois(cc,bb).w = rotatedRoiW;
         rois(cc,bb).x = repmat(bestXCtr + meanCenter(1:roiWPaddedSz(2)),...
             roiWPaddedSz(1),1);
