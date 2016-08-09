@@ -1,5 +1,5 @@
 function [block] = rotateAndSelectBlock(movieFrame, bInf, angle)
-% block = rotateAndReselectBlock(movieFrame, bInf, angle) 
+% block = rotateAndSelectBlock(movieFrame, bInf, angle) 
 % 
 % Rotate movieFrame clockwise about the center of the bInf.blockLoc by the
 % specified angle and return the new image in the bInf.blockLoc
