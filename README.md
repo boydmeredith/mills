@@ -1,5 +1,6 @@
-*Full overview of the pipeline*
-———————————————
+**Full overview of the pipeline**
+
+
 1. Register each frame of the motion-corrected movie to reference z-stack by finding the x, y, z position and rotation angle (r) that maximize correlations between (36) partially overlapping blocks from the movie and the slices of the stack.
 2a. Divide movie into sub-movies—series of frames with correlated intensities and x, y, z, r estimates
 2b. Run cell finding on these sub-movies.
@@ -7,15 +8,17 @@
 3b. Determine whether rois found in each sub-movie came from the same cell or not based on position in reference.
 
 
-*What does mills do ?*
+**What does mills do?**
+
+
 Most of the mills package exists to perform #1 and then to visualize the results. The main function is blockwiseMovieStackCorr.m which was extensive documentation for its many optional arguments. There are also many functions which operate on the output localization summary file that generate useful visualizations and quality controls, including to help generate figures to guide manual definition of the of sub-movie divisions for #2a (although it would be nice to write a gui that gives the user feedback on this). Finally, a function called registerRois.m can accomplish #3a provided 2b has been accomplished by separate code. 
 
 ______________________________________________________________________
 
 
 #1
-=======
-MAIN FUNCTION 
+
+MAIN FUNCTION \\
 blockwiseMovieStackCorr - register movies to subject-specific reference stack 
 				    (see bottom of page for more detailed description of algorithm)
 IN: 		subject name
