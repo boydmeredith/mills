@@ -1,17 +1,119 @@
-function [corrValsToSave, xyzrcoPeak] = blockwiseMovieStackCorr(subj, movieDate, varargin)
+function [xyzrcoPeak, params] = blockwiseMovieStackCorr(subj, movieDate, varargin)
+% function [xyzrcoPeak, params] = blockwiseMovieStackCorr(subj, movieDate, varargin)
+%
+% Register each frame of the motion-corrected movie to reference z-stack by finding
+% the x, y, z position and rotation angle (r) that maximize correlations between (36)
+% partially overlapping blocks from the movie and the slices of the stack. For first 
+% frame, search through many possibilities to define a neighborhood to search within 
+% for final registrations. After each frame is registered, update this search range 
+% prior for the next frame. When a block's values are incongruent with its neighbors 
+% it is marked as an oddball. If it doesn't have a clear peak correlation, the 
+% center of its search range is used and the correlation is marked as nan.
+% 
+%
+% inputs:
+% subj          - mouse ID (e.g., J115)
+% movieDate     - date of movie to register (e.g., 2015-09-25)
+%
+% output variables:
+% xyzrcoPeak    - 6 x nBlocks x nFrames matrix containing the x, y, z position, 
+%                 rotation angle, correlation value, and oddball status of each 
+%                 block's best registration for each frame
+% params        - the parameters used to generate the alignment
+% 
+% ouput files:
+% summary      - unless the optional 'summarySaveName' is supplied as empty, 
+%                running this function will create a directory 
+%                <subj>/<movieDate>/<location>_referenceLocalization 
+%                and write a file called summary.mat containing the xyzrcoPeak, 
+%                params, xyzrSearchRange and other fields. See intaglio document
+%                for more information.
+% block        - unless the optional 'blockSaveFormat' is supplied as empty
+%                running this function will create a frameXXX/blockXXX.mat file
+%                within the reference localization folder. It will contain an array 
+%                of correlation values and indices for their corresponding x, y, z, r
+%                positions. The createPairsPlot function can be used to build sparse 
+%                matrices from these values and turn them into useful visualizations.
+% searchRange -  unless 'searchRangeFigName' is supplied as empty, running this function
+%                will produce a pdf showing the x,y,z,r values and outliers for the 
+%                initial search range 
+%
+% Some important optional arguments:
+% showFigs      - default 'off'; determines whether search range figures should pop up
+%                 while code is running
+% mByNBlocks    - default [6 6]; determines how many blocks to tile image
+% blockOverlap  - default 10; determines how much overlap blocks should have 
+%                 (treated as percentage of block if < 1)
+% whichBlocks   - default 1:nBlocks; which of the blocks to register
+% whichFrames   - default 1:nFrames; which of the frames to register
+% whichSlices   - default 1:nSlices; which of the z slices to consider for registration
+%
+% nbrhdXMargin  - Numer of pixels around searchRange x center to compute correlation
+%                 values for. This helps avoid picked spurious correlations by 
+%                 by keeping the block on a "leash" in x. 
+% minCorrOverlap 
+%               - Minimum amount of overlap required between block and stack for 
+%                 registration.
+% 
+% coarseRotStepSz 
+%               - granularity of rotation angle search for searchRange
+% fineRotStepSz - granularity of rotation angle search around final neighborhood
+%
+% nZToKeepInlier
+%               - Number of z values to use for the neighborhood around inliers
+% nZToKeepOutlier 
+%               - Number of z values to use for the neighborhood around outliers/oddballs
+% 
+% flagZNFromEdge 
+%               - Default 2. If best z is found to be within this number of the min or max of 
+%                 z values to consider, then label as an oddball AND open up the range of z 
+%                 values to consider until you have found a good match that is not close to 
+%                 the edge of the window or until the window can't grow anymore. There is a 
+% flagRNFromEdge
+%               - equivalent of flagZNFromEdge, but for rotaions.
+%
+% nXYToKeep     - Number of correlation values to keep in block-specific .mat files
+% corrType      - format for storing correlation values in block-specific .mat files
+%
+% useXYSearchRangeFromDate
+%               - Defaults to empty, but if a date is supplied, the searchRange from that
+%                 date will be used to constrain the x,y positions for the calculation of 
+%                 the current searchRange
+%
+% searchRangeXMargin
+%               - Similar to nbrhdXMargin, expect specific to finding the initial searchRange
+% nRSTD         - Defaults to 8, which is too high. Number of robust standard deviations
+%                 beyond which points are considered outliers in computing the search range.
+% xRadiusMin    - The max of this value and nRSTD * RSTD is used for determining outliers 
+%                 in the search range
+%
 
 % ---------- parse optional inputs ---------- %
 %
 p = inputParser;
 
-addOptional(p, 'location','L01');
+addOptional(p,'summarySaveName', 'summary.mat',@isstr);
+addOptional(p,'blockSaveFormat', 'block%03i.mat',@isstr);
 
+addOptional(p, 'location','L01');
 addOptional(p, 'stackDate', []);
 
+% can pass in already loaded stack and movie, but BEWARE saved path names will 
+% get out of sync with real movie/stack if you pass in the wrong ones!!
+addOptional(p,'loadedStack',[],@isnumeric);
+addOptional(p,'loadedMovie',[],@isnumeric);
+
+addOptional(p,'dataDir',[],@(x) isdir(x) | isempty(x));
+
 addOptional(p,'corrType', 'uint16', @(x) ismember(x,{'uint8','uint16','uint32','uint64','double'}));
+addOptional(p,'nXYToKeep', 400, @(x) isnumeric(x) & ~mod(x,1));
+
 addOptional(p,'mByNBlocks',[6 6],@(x) isnumeric(x) & ~mod(x,1));
-%addOptional(p,'blockOverlap',.2,@(x) ispositive(x) & isnumeric(x));
 addOptional(p,'blockOverlap',10,@(x) ispositive(x) & isnumeric(x));
+
+addOptional(p,'whichBlocks', [],@isnumeric);
+addOptional(p,'whichFrames', [],@isnumeric);
+addOptional(p,'whichSlices', [],@isnumeric);
 
 addOptional(p,'coarseRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
 addOptional(p,'coarseRotWindowRange',20, @(x) ispositive(x) & isnumeric(x));
@@ -25,54 +127,22 @@ else
     addOptional(p,'fineRotStepSz',.25, @(x) ispositive(x) & isnumeric(x));
     
 end
-addOptional(p,'nXYToKeep', 400, @(x) isnumeric(x) & ~mod(x,1));
 
 addOptional(p,'nZToKeepInlier', 11, @(x) isnumeric(x) & mod(x,2) == 1);
 addOptional(p,'nZToKeepOutlier', 21, @(x) isnumeric(x) & mod(x,2) == 1);
 
-%addOptional(p,'angleSigFig',2,@(x) isnumeric(x) & ~mod(x,1));
 addOptional(p,'angleSigFig',2,@(x) isnumeric(x) & ~mod(x,1));
 
-% inferZWindow is only relevant if useZFit
-addOptional(p,'inferZWindow',100,@(x) isnumeric & ~mod(x,1));
-addOptional(p, 'zSearchRangeUseFit', false, @islogical)
-addOptional(p, 'rSearchRangeUseFit', false, @islogical)
-addOptional(p,'zFitPower',5,@(x) isnumeric(x) & ~mod(x,1));
-addOptional(p,'rFitPower',4,@(x) isnumeric & ~mod(x,1));
-
-
-addOptional(p,'whichBlocks', [],@isnumeric);
-addOptional(p,'whichFrames', [],@isnumeric);
-addOptional(p,'whichSlices', [],@isnumeric);
-
-addOptional(p,'reportZPeakFinder',true,@islogical);
-addOptional(p,'reportRotPeakFinder',true,@islogical);
-
-addOptional(p,'reportBlockRefZNbrhdd',true,@islogical);
-addOptional(p,'reportBlockRefRotNbrhdd',true,@islogical);
-
-addOptional(p,'reportBlockRefOverlap',true,@islogical);
-addOptional(p,'reportBlockRefDiff',true,@islogical);
-addOptional(p,'reportDimPairs',true,@islogical);
-
-addOptional(p,'loadedStack',[],@isnumeric);
-addOptional(p,'loadedMovie',[],@isnumeric);
-
-addOptional(p,'dataDir',[],@(x) isdir(x) | isempty(x));
-
-addOptional(p,'summarySaveName', 'summary.mat',@isstr);
-addOptional(p,'blockSaveFormat', 'block%03i.mat',@isstr);
-
-addOptional(p, 'rFitFigName','rFit.pdf');
-addOptional(p, 'zFitFigName' ,'zFit.pdf');
-
-addOptional(p, 'diffGifName', 'blockDiffs.gif');
-addOptional(p, 'montageGifName', 'blockMontage.gif');
-addOptional(p, 'allValsPeakGifName', 'allValsPeak.gif');
-
+% gets used as savename in separate functin fitXYZRSearchRange
 addOptional(p, 'searchRangeFigName','searchRangeFig.pdf');
 
-
+addOptional(p,'inferZWindow',100,@(x) isnumeric & ~mod(x,1));  % inferZWindow is only relevant if useZFit
+addOptional(p,'zFitPower',5,@(x) isnumeric(x) & ~mod(x,1));
+addOptional(p,'rFitPower',4,@(x) isnumeric & ~mod(x,1));
+addOptional(p, 'rFitFigName','rFit.pdf'); % automatically saves fit figure in frame001
+addOptional(p, 'zFitFigName' ,'zFit.pdf');
+addOptional(p, 'zSearchRangeUseFit', false, @islogical)
+addOptional(p, 'rSearchRangeUseFit', false, @islogical)
 
 addOptional(p,'showFigs','off',@(x) any(strcmp({'on','off'},x)));
 
@@ -94,7 +164,9 @@ addOptional(p, 'nRSTD', 8)
 addOptional(p,'xRadiusMin',4,@isnumeric);
 addOptional(p,'yRadiusMin',4,@isnumeric);
 
-% will flag as oddballs
+% will flag as oddballs if alignment is found this close to 
+% edge of possible z's or r's. If possible, will expand the
+% neighborhood to include more zs or rs.
 addOptional(p, 'flagZNFromEdge', 2)
 addOptional(p, 'flagRNFromEdge', 2)
 
