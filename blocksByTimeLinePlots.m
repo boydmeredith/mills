@@ -1,4 +1,5 @@
 function h = blocksByTimeLinePlots(subj,movieDate,location,varargin)
+% function h = blocksByTimeLinePlots(subj,movieDate,location,varargin)
 
 p = inputParser;
 addOptional(p,'meanCenter',false);

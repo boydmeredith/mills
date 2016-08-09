@@ -1,7 +1,12 @@
-function h = blocksByTimeHeatPlots(subj,movieDate,location,doSave,doShow)
-if isempty(location)
-    location = 'L01';
-end
+function h = blocksByTimeHeatPlots(subj,movieDate,location,varargin)
+p = inputParser;
+addOptional(p, 'doShow', 'on');
+addOptional(p, 'doSave', false);
+parse(p, varargin{:});
+
+doShow = p.Results.doShow;
+doSave = p.Results.doSave;
+
 if doShow, doShow = 'on'; else doShow = 'off'; end
 theRefLocDir = referenceLocalizationDir(subj, movieDate, location);
 s = load(fullfile(theRefLocDir, 'summary.mat'),'xyzrcoPeak','params');

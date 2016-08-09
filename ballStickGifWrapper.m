@@ -1,4 +1,4 @@
-function h = ballStickGifWrapper(subj, movieDate, location, whichFrames, viewNames, doSave, doShow)
+function h = ballStickGifWrapper(subj, movieDate, location, varargin);
 % function hArr = ballStickGifWrapper(subj, movieDate, location, whichFrames, viewNames, doSave, doShow)
 % 
 % Plot blockwise alignments for the specified frames from a registered
@@ -12,9 +12,17 @@ function h = ballStickGifWrapper(subj, movieDate, location, whichFrames, viewNam
 % Saves a gif if desired
 
 
+p = inputParser;
+addOptional(p, 'doShow', 'on');
+addOptional(p, 'doSave', false);
+addOptional('whichFrames',[]);
+addOptional('viewNames',{'birdsEye', 'sideView'});
+parse(p, varargin{:});
 
-if isempty(location), location = 'L01'; end
-if isempty(doSave), doSave = false; end
+doShow = p.Results.doShow;
+doSave = p.Results.doSave;
+viewNames = p.Results.viewNames;
+whichFrames = p.Results.whichFrames;
 
 theRefLocDir = referenceLocalizationDir(subj, movieDate, location);
 s = load(fullfile(theRefLocDir, 'summary.mat'),'xyzrcoPeak','params','stackPath');
