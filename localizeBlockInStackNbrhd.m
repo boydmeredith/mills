@@ -31,9 +31,12 @@ if ~isempty(fields(p.Unmatched)),
     error('unmatched fields in localizeBlockInStackNbrhd');
 end
 
-if isempty(p.Results.whichSlices)
+
+whichSlices = p.Results.whichSlices;
+if isempty(whichSlices)
     whichSlices = 1:size(stack,3);
 end
+    
 
 xyzrcoPeak = [];
 
