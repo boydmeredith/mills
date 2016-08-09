@@ -157,12 +157,14 @@ params.coarseRotAngles(params.coarseRotAngles == 0) = [];
 fineRotAngles          = -(params.fineRotWindowRange/2): params.fineRotStepSz ...
     :(params.fineRotWindowRange/2);
 fineRotAngles          = round(fineRotAngles, params.angleSigFig);
-nbrhdInf.rOffToKeep    = fineRotAngles;
 rotAngleFromInd        = params.coarseRotAngles(1):params.fineRotStepSz ...
     :params.coarseRotAngles(end);
 rotAngleFromInd        = round(rotAngleFromInd, params.angleSigFig);
 params.rotAngleFromInd = rotAngleFromInd;
 assert(length(params.rotAngleFromInd) <= 255); % make sure that we can represent rotation with uint8
+
+
+nbrhdInf.rOffToKeep    = fineRotAngles;
 
 
 % load stack
@@ -182,7 +184,7 @@ elseif ismember('post_stack_001',{stackHdrDirs.name})
     stackHdrDir = 'post_stack_001';
 end
 stackHdrFile = fullfile(jlgDataDir, subj, params.stackDate, stackHdrDir,'post_stack_001_001.tif');
-% get image headers
+%get image headers
 stackHdr = getScanImageHeader(stackHdrFile); movHdr = getScanImageHeader(movHdrFile);
 if ~(stackHdr.scanimage.SI5.zoomFactor == movHdr.scanimage.SI5.zoomFactor)
     error('Stack and movie have different zoom factors');
@@ -297,6 +299,18 @@ for ff = 1:length(params.whichFrames),
         % we can determine how many values will be in the correlation matrix
         thisBlockNo   = params.whichBlocks(bb);
         thisBlockLoc  = blockLocations(:,:,thisBlockNo);
+        
+        nbrhdInf.xCtr = xyzrSearchRange(1,thisBlockNo);
+        nbrhdInf.yCtr = xyzrSearchRange(2,thisBlockNo);
+        nbrhdInf.zCtr = xyzrSearchRange(3,thisBlockNo);
+        nbrhdInf.rCtr = xyzrSearchRange(4,thisBlockNo); 
+        if outliersXY(thisBlockNo)
+            nbrhdInf.zOffToKeep    = -floor(params.nZToKeepOutlier/2):floor(params.nZToKeepOutlier/2);
+        else
+            nbrhdInf.zOffToKeep    = -floor(params.nZToKeepInlier/2):floor(params.nZToKeepInlier/2);
+        end
+
+        
         % Loop through the specified range of z values and angles
         fprintf('computing correlations in peak neighborhood for block %03i...\n',thisBlockNo);
         [thisXyzrcoPeak, blockCorrs] = localizeBlockInStackNbrhd(thisBlockLoc, ...
@@ -353,6 +367,17 @@ set(0, 'DefaultFigureVisible', 'on');
 end
 
 
+
+
+
+
+
+
+
+
+
+
+
 %%%%%%% END OF MAIN FUNCTION %%%%%%%%
 %========================================================================%
 %%%%%%% HELPER FUNCTIONS %%%%%%%%
@@ -370,8 +395,10 @@ function [xyzrSearchRange, outliersXY] = getSearchRange(movieFrame, blockLocatio
 
 % x and y leash to use for setting z search range; only comes into play if
 % the option useXYSearchRangeFromDate is set to true
+initialNbrhdInf = nbrhdInf;
 initialNbrhdInf.xMargin = params.searchRangeXMargin;
 initialNbrhdInf.yMargin = params.searchRangeYMargin;
+
 if ~isempty(params.useXYSearchRangeFromDate)
     prevSummaryFile = fullfile(referenceLocalizationDir(params.subj, ...
         params.useXYSearchRangeFromDate, params.location), params.summarySaveName);
@@ -448,6 +475,9 @@ for bb = 1:length(params.whichBlocks)
     if exist('prevSearchRange','var')
         initialNbrhdInf.xCtr = prevSearchRange.xyzrSearchRange(1,thisBlockNo);
         initialNbrhdInf.yCtr = prevSearchRange.xyzrSearchRange(2,thisBlockNo);
+    else
+        initialNbrhdInf.xCtr = [];
+        initialNbrhdInf.yCtr = [];
     end
     
     fprintf('computing normxcorr2 for block %03i z estimate...\n',thisBlockNo);
@@ -473,7 +503,7 @@ for bb = 1:length(params.whichBlocks)
     
     maxCorrByZData = squeeze(max(max(frameCorrVolNoRot(:,:,:),[],1),[],2));
     % get position of upper left corner of block at best match
-    [~, maxInd]    = max(frameCorrVolNoRot(:));
+    [bestCorrData(thisBlockNo), maxInd]    = max(frameCorrVolNoRot(:));
     [bestYData, bestXData, bestZData(thisBlockNo)] = ind2sub(size(frameCorrVolNoRot), maxInd);
     
     bestYCtrData(thisBlockNo) = bestYData - bInf.height/2 + 1/2;
@@ -522,7 +552,10 @@ if params.zSearchRangeUseFit
 else
     zIn = bestZData;
 end
-[xyzSearchRange, outliersXY] = fitXYZRSearchRange(bestXCtrData,bestYCtrData,zIn,[],params);
+
+
+[xyzSearchRange, outliersXY] = fitXYZRSearchRange(bestXCtrData,bestYCtrData,...
+    zIn,[], params);
 
 % ------------ get initial rotation angle estimate for each block --------------- %
 fprintf('getting initial searchRange on r for all blocks...\n');
