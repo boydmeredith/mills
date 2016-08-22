@@ -2,6 +2,8 @@ function [rois, xyzrcoClusterPeaks] = ...
     registerRois(subject, theDate, location, varargin)
 
 
+% newline to test what happens when I push an outdated commit
+
 p = inputParser; % also same line changed!
 addOptional(p,'whichClusters',[]); % jeff's test comment
 addOptional(p,'whichBlocks',[]);
