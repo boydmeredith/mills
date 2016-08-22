@@ -2,8 +2,8 @@ function [rois, xyzrcoClusterPeaks] = ...
     registerRois(subject, theDate, location, varargin)
 
 
-p = inputParser;
-addOptional(p,'whichClusters',[]);
+p = inputParser; % also same line changed!
+addOptional(p,'whichClusters',[]); % jeff's test comment
 addOptional(p,'whichBlocks',[]);
 addOptional(p,'xMargin',15);
 addOptional(p,'yMargin',15);
