@@ -4,7 +4,7 @@ function [rois, xyzrcoClusterPeaks] = ...
 
 % newline to test what happens when I push an outdated commit
 
-p = inputParser;
+p = inputParser ; %another such comment
 addOptional(p,'whichClusters',[]);
 addOptional(p,'whichBlocks',[]);
 addOptional(p,'xMargin',15);
@@ -78,6 +78,8 @@ for cc = whichClusters
     % list frames associated with this cluster
     thisClustFrames = find(matrixDownsampleSum(clusterFile.clusterSpec(:,cc),1000,1) > 0);
     
+    if isempty(thisClustFrames), continue, end
+    
     % find localization for these frames
     x=squeeze(refLocSumm.xyzrcoPeak(1,:,thisClustFrames));
     y=squeeze(refLocSumm.xyzrcoPeak(2,:,thisClustFrames));
@@ -99,6 +101,7 @@ for cc = whichClusters
             location,cc,bb);
         
         
+        if isempty(cIm), continue, end
         
         
         assert(isequal(thisClustFrames,cframes));
