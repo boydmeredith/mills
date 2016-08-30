@@ -1,3 +1,7 @@
+% NOT CURRENT
+% plots vector field of block movements from movie to ref
+
+
 load /Volumes/tank/jtb3/Data/j115/2015-12-06__L01__AVERAGE_corrs/J115_2015-12-06_frame001.mat
 
 %% get center of each corr mat

@@ -12,3 +12,4 @@ myprofile_results*
 .DS_Store
 *.fig
 unusedFunctions/*
+addJeffCode2Path.m
