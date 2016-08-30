@@ -2,12 +2,12 @@ function h = blocksByTimeLinePlots(subj,movieDate,location,varargin)
 % function h = blocksByTimeLinePlots(subj,movieDate,location,varargin)
 
 p = inputParser;
-addOptional(p,'meanCenter',false);
-addOptional(p,'plotMean',true);
-addOptional(p,'nBlocksPerPlot',6);
-addOptional(p,'variablesToPlot',1:6);
-addOptional(p,'doShow','on');
-addOptional(p,'doSave',false);
+addParameter(p,'meanCenter',false);
+addParameter(p,'plotMean',true);
+addParameter(p,'nBlocksPerPlot',6);
+addParameter(p,'variablesToPlot',1:6);
+addParameter(p,'doShow','on');
+addParameter(p,'doSave',false);
 parse(p,varargin{:});
 
 

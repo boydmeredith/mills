@@ -3,23 +3,23 @@ function [rois, xyzrcoClusterPeaks] = ...
 
 
 
-p = inputParser ; %another such comment
-addOptional(p,'whichClusters',[]);
-addOptional(p,'whichBlocks',[]);
-addOptional(p,'xMargin',15);
-addOptional(p,'yMargin',15);
-addOptional(p,'zFitStyle','poly11');
-addOptional(p,'rFitStyle','poly11');
-addOptional(p,'zFitRobust','Bisquare');
-addOptional(p,'rFitRobust','Bisquare');
+p = inputParser ; 
+addParameter(p,'whichClusters',[]);
+addParameter(p,'whichBlocks',[]);
+addParameter(p,'xMargin',15);
+addParameter(p,'yMargin',15);
+addParameter(p,'zFitStyle','poly11');
+addParameter(p,'rFitStyle','poly11');
+addParameter(p,'zFitRobust','Bisquare');
+addParameter(p,'rFitRobust','Bisquare');
 
-%addOptional(p,'stack',[]);
-addOptional(p,'refLocSumm',[]);
+%addParameter(p,'stack',[]);
+addParameter(p,'refLocSumm',[]);
 
-addOptional(p,'zNbrhdRange',[-2:2]);
-addOptional(p,'rNbrhdRange',[-1:.25:1]);
+addParameter(p,'zNbrhdRange',[-2:2]);
+addParameter(p,'rNbrhdRange',[-1:.25:1]);
 
-%addOptional(p,'xyzrcoClustPeaks',[]);
+%addParameter(p,'xyzrcoClustPeaks',[]);
 parse(p,varargin{:});
 
 whichClusters = p.Results.whichClusters;

@@ -1,7 +1,7 @@
 function [clustCtrX, clustCtrY, bestZ, bestR] = interpolateZR(subject, theDate, location, varargin)
 p = inputParser;
-addOptional(p,'whichClusters',[]);
-addOptional(p,'whichBlocks',[]);
+addParameter(p,'whichClusters',[]);
+addParameter(p,'whichBlocks',[]);
 parse(p,varargin{:});
 
 whichBlocks = p.Results.whichBlocks;
