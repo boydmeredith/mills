@@ -1,5 +1,9 @@
 function [h] = blk_reg_report(img, stack, stack_date,  img_date, img_blk_yix, img_blk_xix, blkno, blk_C, off_range)
 %
+% Not up to date!!! 
+% Creates report showing best found match for a block and the corresponding portion of the stack
+% in the neighboring few z slices
+%%
 off_in_cplot = -50:50;
 z_range = -3:3;
 

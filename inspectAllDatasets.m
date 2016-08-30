@@ -1,7 +1,7 @@
 function inspectAllDatasets(varargin)
 f=figure;
 p=inputParser;
-addOptional(p,'subjects', {'J114' 'J115' 'J116' 'J117' 'J118' 'J119' 'J122' 'J123'});
+addParameter(p,'subjects', {'J114' 'J115' 'J116' 'J117' 'J118' 'J119' 'J122' 'J123'});
 parse(p,varargin{:});
 nSubjects = length(p.Results.subjects);
 subjects = p.Results.subjects;

@@ -1,8 +1,8 @@
 function  plotRoisInVol(nS, xyzrcoPeak,cc,bb,varargin)
 p=inputParser;
-addOptional(p,'roiThresh',.005);
-addOptional(p,'whichRois',[]);
-addOptional(p,'stackIm',[]);
+addParameter(p,'roiThresh',.005);
+addParameter(p,'whichRois',[]);
+addParameter(p,'stackIm',[]);
 parse(p,varargin{:});
 
 stack = p.Results.stackIm;

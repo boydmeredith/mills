@@ -1,9 +1,9 @@
 function [xyzrcoClusterPeaks cb] = interpClusterZR(subject, theDate, location, varargin)
 p = inputParser;
-addOptional(p,'whichClusters',[]);
-addOptional(p,'whichBlocks',[]);
-addOptional(p,'xMargin',15);
-addOptional(p,'yMargin',15);
+addParameter(p,'whichClusters',[]);
+addParameter(p,'whichBlocks',[]);
+addParameter(p,'xMargin',15);
+addParameter(p,'yMargin',15);
 parse(p,varargin{:});
 
 nbrhdInf.xMargin = p.Results.xMargin;

@@ -1,10 +1,10 @@
 function plotDriftAllSessions(subject,varargin)
 
 p=inputParser;
-addOptional(p,'meanCenter',false);
-addOptional(p,'plotVar',3);
-addOptional(p,'ignoreEdges',false);
-addOptional(p,'whichBlocks',[]);
+addParameter(p,'meanCenter',false);
+addParameter(p,'plotVar',3);
+addParameter(p,'ignoreEdges',false);
+addParameter(p,'whichBlocks',[]);
 parse(p,varargin{:});
 
 if isempty(p.Results.whichBlocks)
