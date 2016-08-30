@@ -92,83 +92,83 @@ function [xyzrcoPeak, params] = blockwiseMovieStackCorr(subj, movieDate, varargi
 %
 p = inputParser;
 
-addOptional(p,'summarySaveName', 'summary.mat',@isstr);
-addOptional(p,'blockSaveFormat', 'block%03i.mat',@isstr);
+addParamValue(p,'summarySaveName', 'summary.mat',@isstr);
+addParamValue(p,'blockSaveFormat', 'block%03i.mat',@isstr);
 
-addOptional(p, 'location','L01');
-addOptional(p, 'stackDate', []);
+addParamValue(p, 'location','L01');
+addParamValue(p, 'stackDate', []);
 
 % can pass in already loaded stack and movie, but BEWARE saved path names will 
 % get out of sync with real movie/stack if you pass in the wrong ones!!
-addOptional(p,'loadedStack',[],@isnumeric);
-addOptional(p,'loadedMovie',[],@isnumeric);
+addParamValue(p,'loadedStack',[],@isnumeric);
+addParamValue(p,'loadedMovie',[],@isnumeric);
 
-addOptional(p,'dataDir',[],@(x) isdir(x) | isempty(x));
+addParamValue(p,'dataDir',[],@(x) isdir(x) | isempty(x));
 
-addOptional(p,'corrType', 'uint16', @(x) ismember(x,{'uint8','uint16','uint32','uint64','double'}));
-addOptional(p,'nXYToKeep', 400, @(x) isnumeric(x) & ~mod(x,1));
+addParamValue(p,'corrType', 'uint16', @(x) ismember(x,{'uint8','uint16','uint32','uint64','double'}));
+addParamValue(p,'nXYToKeep', 400, @(x) isnumeric(x) & ~mod(x,1));
 
-addOptional(p,'mByNBlocks',[6 6],@(x) isnumeric(x) & ~mod(x,1));
-addOptional(p,'blockOverlap',10,@(x) ispositive(x) & isnumeric(x));
+addParamValue(p,'mByNBlocks',[6 6],@(x) isnumeric(x) & ~mod(x,1));
+addParamValue(p,'blockOverlap',10,@(x) ispositive(x) & isnumeric(x));
 
-addOptional(p,'whichBlocks', [],@isnumeric);
-addOptional(p,'whichFrames', [],@isnumeric);
-addOptional(p,'whichSlices', [],@isnumeric);
+addParamValue(p,'whichBlocks', [],@isnumeric);
+addParamValue(p,'whichFrames', [],@isnumeric);
+addParamValue(p,'whichSlices', [],@isnumeric);
 
-addOptional(p,'coarseRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
-addOptional(p,'coarseRotWindowRange',20, @(x) ispositive(x) & isnumeric(x));
+addParamValue(p,'coarseRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
+addParamValue(p,'coarseRotWindowRange',20, @(x) ispositive(x) & isnumeric(x));
 
 if strcmp(subj,'J114')
-    addOptional(p,'fineRotWindowRange',10, @(x) ispositive(x) & isnumeric(x));
-    addOptional(p,'fineRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
+    addParamValue(p,'fineRotWindowRange',10, @(x) ispositive(x) & isnumeric(x));
+    addParamValue(p,'fineRotStepSz',.5, @(x) ispositive(x) & isnumeric(x));
     
 else
-    addOptional(p,'fineRotWindowRange',6, @(x) ispositive(x) & isnumeric(x));
-    addOptional(p,'fineRotStepSz',.25, @(x) ispositive(x) & isnumeric(x));
+    addParamValue(p,'fineRotWindowRange',6, @(x) ispositive(x) & isnumeric(x));
+    addParamValue(p,'fineRotStepSz',.25, @(x) ispositive(x) & isnumeric(x));
     
 end
 
-addOptional(p,'nZToKeepInlier', 11, @(x) isnumeric(x) & mod(x,2) == 1);
-addOptional(p,'nZToKeepOutlier', 21, @(x) isnumeric(x) & mod(x,2) == 1);
+addParamValue(p,'nZToKeepInlier', 11, @(x) isnumeric(x) & mod(x,2) == 1);
+addParamValue(p,'nZToKeepOutlier', 21, @(x) isnumeric(x) & mod(x,2) == 1);
 
-addOptional(p,'angleSigFig',2,@(x) isnumeric(x) & ~mod(x,1));
+addParamValue(p,'angleSigFig',2,@(x) isnumeric(x) & ~mod(x,1));
 
 % gets used as savename in separate functin fitXYZRSearchRange
-addOptional(p, 'searchRangeFigName','searchRangeFig.pdf');
+addParamValue(p, 'searchRangeFigName','searchRangeFig.pdf');
 
-addOptional(p,'inferZWindow',100,@(x) isnumeric & ~mod(x,1));  % inferZWindow is only relevant if useZFit
-addOptional(p,'zFitPower',5,@(x) isnumeric(x) & ~mod(x,1));
-addOptional(p,'rFitPower',4,@(x) isnumeric & ~mod(x,1));
-addOptional(p, 'rFitFigName','rFit.pdf'); % automatically saves fit figure in frame001
-addOptional(p, 'zFitFigName' ,'zFit.pdf');
-addOptional(p, 'zSearchRangeUseFit', false, @islogical)
-addOptional(p, 'rSearchRangeUseFit', false, @islogical)
+addParamValue(p,'inferZWindow',100,@(x) isnumeric & ~mod(x,1));  % inferZWindow is only relevant if useZFit
+addParamValue(p,'zFitPower',5,@(x) isnumeric(x) & ~mod(x,1));
+addParamValue(p,'rFitPower',4,@(x) isnumeric & ~mod(x,1));
+addParamValue(p, 'rFitFigName','rFit.pdf'); % automatically saves fit figure in frame001
+addParamValue(p, 'zFitFigName' ,'zFit.pdf');
+addParamValue(p, 'zSearchRangeUseFit', false, @islogical)
+addParamValue(p, 'rSearchRangeUseFit', false, @islogical)
 
-addOptional(p,'showFigs','off',@(x) any(strcmp({'on','off'},x)));
+addParamValue(p,'showFigs','off',@(x) any(strcmp({'on','off'},x)));
 
-addOptional(p, 'useSavedSearchRange', true, @islogical);
-addOptional(p, 'useSavedSearchRangeEitherWay', false, @islogical);
+addParamValue(p, 'useSavedSearchRange', true, @islogical);
+addParamValue(p, 'useSavedSearchRangeEitherWay', false, @islogical);
 
-addOptional(p, 'nbrhdXMargin', 10, @isnumeric);
-addOptional(p, 'nbrhdYMargin', 10, @isnumeric);
-addOptional(p, 'minCorrOverlap', .8, @isnumeric);
+addParamValue(p, 'nbrhdXMargin', 10, @isnumeric);
+addParamValue(p, 'nbrhdYMargin', 10, @isnumeric);
+addParamValue(p, 'minCorrOverlap', .8, @isnumeric);
 
-addOptional(p, 'useXYSearchRangeFromDate', []);
-addOptional(p, 'searchRangeXMargin', 50, @isnumeric);
-addOptional(p, 'searchRangeYMargin', 50, @isnumeric);
+addParamValue(p, 'useXYSearchRangeFromDate', []);
+addParamValue(p, 'searchRangeXMargin', 50, @isnumeric);
+addParamValue(p, 'searchRangeYMargin', 50, @isnumeric);
 
 
 
 % for defining outliers when setting up search range
-addOptional(p, 'nRSTD', 8)
-addOptional(p,'xRadiusMin',4,@isnumeric);
-addOptional(p,'yRadiusMin',4,@isnumeric);
+addParamValue(p, 'nRSTD', 8)
+addParamValue(p,'xRadiusMin',4,@isnumeric);
+addParamValue(p,'yRadiusMin',4,@isnumeric);
 
 % will flag as oddballs if alignment is found this close to 
 % edge of possible z's or r's. If possible, will expand the
 % neighborhood to include more zs or rs.
-addOptional(p, 'flagZNFromEdge', 2)
-addOptional(p, 'flagRNFromEdge', 2)
+addParamValue(p, 'flagZNFromEdge', 2)
+addParamValue(p, 'flagRNFromEdge', 2)
 
 
 
@@ -246,7 +246,7 @@ if isempty(params.stackDate),
 end
 
 % enforce that stack and movie have same zoom factor
-movHdrFile = fullfile(jlgDataDir,subj,movieDate,params.location,'ac_001_001.tif');
+movHdrFile = fullfile(jlgDataDir,subj,movieDate,params.location,'ac_002_001.tif');
 stackHdrDirs = dir(fullfile(jlgDataDir, subj, params.stackDate, 'post*stack*'));
 if ismember('post_stack',{stackHdrDirs.name})
     stackHdrDir = 'post_stack';

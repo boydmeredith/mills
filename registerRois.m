@@ -4,22 +4,22 @@ function [rois, xyzrcoClusterPeaks] = ...
 
 
 p = inputParser;
-addOptional(p,'whichClusters',[]);
-addOptional(p,'whichBlocks',[]);
-addOptional(p,'xMargin',15);
-addOptional(p,'yMargin',15);
-addOptional(p,'zFitStyle','poly11');
-addOptional(p,'rFitStyle','poly11');
-addOptional(p,'zFitRobust','Bisquare');
-addOptional(p,'rFitRobust','Bisquare');
+addParamValue(p,'whichClusters',[]);
+addParamValue(p,'whichBlocks',[]);
+addParamValue(p,'xMargin',15);
+addParamValue(p,'yMargin',15);
+addParamValue(p,'zFitStyle','poly11');
+addParamValue(p,'rFitStyle','poly11');
+addParamValue(p,'zFitRobust','Bisquare');
+addParamValue(p,'rFitRobust','Bisquare');
 
-%addOptional(p,'stack',[]);
-addOptional(p,'refLocSumm',[]);
+%addParamValue(p,'stack',[]);
+addParamValue(p,'refLocSumm',[]);
 
-addOptional(p,'zNbrhdRange',[-2:2]);
-addOptional(p,'rNbrhdRange',[-1:.25:1]);
+addParamValue(p,'zNbrhdRange',[-2:2]);
+addParamValue(p,'rNbrhdRange',[-1:.25:1]);
 
-%addOptional(p,'xyzrcoClustPeaks',[]);
+%addParamValue(p,'xyzrcoClustPeaks',[]);
 parse(p,varargin{:});
 
 whichClusters = p.Results.whichClusters;
@@ -46,7 +46,7 @@ nBlocks = size(clustInfo.clusterBlockLocations,2);
 
 % load first cell finding file to get estimate for cell counts and block
 % size
-cellfile = load(nS.cellFileNameFcn(1,1),'rois');
+%cellfile = load(nS.cellFileNameFcn(1,1),'rois');
 
 if isempty(whichClusters)
     whichClusters = 1:nClusts;
