@@ -36,13 +36,33 @@ meanCenter = @(x) x - mean(x);
 % get some useful file names
 nS = getNameStruct(subject, theDate, location);
 
+
+% skip if clustering not done yet
+if ~exist(nS.clusterFileName,'file')
+    rois = [];
+    xyzrcoClusterPeaks = [];
+    return
+end
+
 % load the cluster file and figure out how many clusters there are
 clusterFile = load(nS.clusterFileName,'clusterSpec');
 nClusts = size(clusterFile.clusterSpec,2);
 
 % load the first cluster info file and figure out how many blocks there are
-clustInfo = load(nS.clusterInfoFileNameFcn(1));
-nBlocks = size(clustInfo.clusterBlockLocations,2);
+for cc=1:nClusts
+    if exist(nS.clusterInfoFileNameFcn(cc),'file')
+        clustInfo = load(nS.clusterInfoFileNameFcn(cc));
+        nBlocks = size(clustInfo.clusterBlockLocations,2);
+        break
+    end
+end
+
+% skip if no cluster info files were found
+if ~exist('nBlocks','var')
+    rois = [];
+    xyzrcoClusterPeaks = [];
+    return
+end
 
 % load first cell finding file to get estimate for cell counts and block
 % size
