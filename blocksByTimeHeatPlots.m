@@ -1,7 +1,7 @@
 function h = blocksByTimeHeatPlots(subj,movieDate,location,varargin)
 p = inputParser;
-addParameter(p, 'doShow', 'on');
-addParameter(p, 'doSave', false);
+addParamValue(p, 'doShow', 'on');
+addParamValue(p, 'doSave', false);
 parse(p, varargin{:});
 
 doShow = p.Results.doShow;

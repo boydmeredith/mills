@@ -13,10 +13,10 @@ function h = ballStickGifWrapper(subj, movieDate, location, varargin);
 
 
 p = inputParser;
-addParameter(p, 'doShow', 'on');
-addParameter(p, 'doSave', false);
-addParameter('whichFrames',[]);
-addParameter('viewNames',{'birdsEye', 'sideView'});
+addParamValue(p, 'doShow', 'on');
+addParamValue(p, 'doSave', false);
+addParamValue('whichFrames',[]);
+addParamValue('viewNames',{'birdsEye', 'sideView'});
 parse(p, varargin{:});
 
 doShow = p.Results.doShow;
