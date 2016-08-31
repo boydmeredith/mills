@@ -246,7 +246,8 @@ if isempty(params.stackDate),
 end
 
 % enforce that stack and movie have same zoom factor
-movHdrFile = fullfile(jlgDataDir,subj,movieDate,params.location,'ac_002_001.tif');
+infoFile = load([fullfile(jlgDataDir,subj,movieDate,params.location) '_info.mat']);
+movHdrFile = fullfile(jlgDataDir,subj,movieDate,infoFile.imageFiles{1});
 stackHdrDirs = dir(fullfile(jlgDataDir, subj, params.stackDate, 'post*stack*'));
 if ismember('post_stack',{stackHdrDirs.name})
     stackHdrDir = 'post_stack';
