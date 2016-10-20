@@ -135,6 +135,10 @@ for cc = whichClusters
                 'cluster file for cluster %03d, block %03d'],cc,bb);
             continue
         end
+        
+        % skip if no ROIs found
+        if isempty(cellfile.rois), continue, end
+        
         assert(isequal(cImSz, [size(cellfile.rois,1), size(cellfile.rois,2)]));
         
         % set up the neighborhood info struct to constrain possible localizations
@@ -155,6 +159,7 @@ for cc = whichClusters
         bestAngle = xyzrcoClusterPeaks(4,cc,bb);
         bestXCtr = xyzrcoClusterPeaks(1,cc,bb);
         bestYCtr = xyzrcoClusterPeaks(2,cc,bb);
+        bestZ = xyzrcoClusterPeaks(3,cc,bb);
         
         % figure out how big cIm is going to be when rotated appropriately
         [rotH, rotW] = dimAfterRotation(cImSz(1), cImSz(2), bestAngle);
@@ -178,7 +183,16 @@ for cc = whichClusters
             roiWPaddedSz(1),1);
         rois(cc,bb).y = repmat(bestYCtr + meanCenter(1:roiWPaddedSz(1))'...
             , 1,roiWPaddedSz(2));
-        rois(cc,bb).z = fitZ(rois(cc,bb).x,rois(cc,bb).y);
+        rois(cc,bb).z =  repmat(bestZ,roiWPaddedSz(1),roiWPaddedSz(2));
+    end
+    
+    xThisCluster = reshape(xyzrcoClusterPeaks(1,cc,:),[],1);
+    yThisCluster = reshape(xyzrcoClusterPeaks(2,cc,:),[],1);
+    zThisCluster = reshape(xyzrcoClusterPeaks(3,cc,:),[],1);
+    fitZ = fit([xThisCluster yThisCluster ], zThisCluster,p.Results.zFitStyle,'Robust',p.Results.zFitRobust);
+    
+    for bb=whichBlocks
+        rois(cc,bb).zFit = fitZ(rois(cc,bb).x,rois(cc,bb).y);
     end
 end
 

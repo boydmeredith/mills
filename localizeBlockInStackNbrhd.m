@@ -42,8 +42,18 @@ xyzrcoPeak = [];
 
 bInf       = getBlockInf(thisBlockLoc);
 
-zRangeToKeep = nbrhdInf.zCtr + nbrhdInf.zOffToKeep;
-zRangeToKeep(zRangeToKeep<1 | zRangeToKeep>size(stack,3)) = [];
+
+% move center of Z search range to closest available stack slice
+stackSlices = 1:size(stack,3);
+findInVec = @(x,vector)find(abs(x-vector) == min(abs(x-vector)),1,'first');
+zCtr = stackSlices(findInVec(nbrhdInf.zCtr,stackSlices));
+
+% choose Z search range to be radius around this center point
+zRangeToKeep = intersect(zCtr + nbrhdInf.zOffToKeep,stackSlices);
+%zRangeToKeep = zCtr + nbrhdInf.zOffToKeep;
+%zRangeToKeep(zRangeToKeep<1 | zRangeToKeep>size(stack,3)) = [];
+
+% choose rotation range to search
 rotToKeep = nbrhdInf.rOffToKeep + round(nbrhdInf.rCtr,p.Results.angleSigFig);
 rotToKeep = round(rotToKeep, p.Results.angleSigFig);
 
