@@ -11,14 +11,14 @@ function [xyzrcoPeak, blockCorrs] = localizeBlockInStackNbrhd(thisBlockLoc,...
     movieFrame, stack, nbrhdInf, varargin)
 
 p = inputParser;
-addParameter(p, 'rotAngleFromInd', []);
-addParameter(p, 'angleSigFig', 2);
-addParameter(p, 'fineRotStepSz', .1);
-addParameter(p, 'ignoreZeroRot'  , true);
-addParameter(p, 'nXYToKeep'  , Inf);
-addParameter(p, 'flagRNFromEdge', 1);
-addParameter(p, 'flagZNFromEdge', 1);
-addParameter(p, 'whichSlices', []);
+addParamValue(p, 'rotAngleFromInd', []);
+addParamValue(p, 'angleSigFig', 2);
+addParamValue(p, 'fineRotStepSz', .1);
+addParamValue(p, 'ignoreZeroRot'  , true);
+addParamValue(p, 'nXYToKeep'  , Inf);
+addParamValue(p, 'flagRNFromEdge', 1);
+addParamValue(p, 'flagZNFromEdge', 1);
+addParamValue(p, 'whichSlices', []);
 p.KeepUnmatched = true;
 parse(p,varargin{:});
 
