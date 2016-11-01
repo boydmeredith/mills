@@ -7,7 +7,7 @@
 
 % params (angleSigFig, rotAngleFromInd, nXYToKeep, corrType)
 
-function [xyzrcoPeak, blockCorrs] = localizeBlockInStackNbrhd(thisBlockLoc,...
+function [xyzrcoPeak, blockCorrs, matchedImages] = localizeBlockInStackNbrhd(thisBlockLoc,...
     movieFrame, stack, nbrhdInf, varargin)
 
 p = inputParser;
@@ -168,8 +168,30 @@ if ~isempty(cPeak)
     xyzrcoPeak = [blkCtrInRefX, blkCtrInRefY, double(blockCorrs.indZ(peakInd)), ...
         blockCorrs.rotAngleFromInd(blockCorrs.indR(peakInd)),...
         cPeak, zEdgeFlag | rEdgeFlag]';
-end
     
+    if nargout > 2
+        % get the match from the stack and plot it
+        sX = (1:bInf.width);
+        sXorig = sX + (xyzrcoPeak(1) - mean(sX));
+        sX(sXorig < 1 | sXorig > size(stack,2)) = [];
+        sY = (1:bInf.height);
+        sYorig = sY + (xyzrcoPeak(2) - mean(sY));
+        sY(sYorig < 1 | sYorig > size(stack,1)) = [];
+        stackMatch = padarray(stack(sY,sX,xyzrcoPeak(3)), [max(0,1-sYorig(1) max(0,1-sXorig(1))],nan,'pre') ;
+        stackMatch = padarray(stack(sY,sX,xyzrcoPeak(3)), [min(0,sYorig(end)-size(stack,1)) min(0,sXorig(end)-size(stack,2))],nan,'post') ;
+        matchedImages = cat(3,rotateAndSelectBlock(movieFrame, bInf, xyzrcoPeak(4)),...
+            stackMatch);
+    end
+    
+    
+    
+else
+    if nargout > 2
+        matchedImages = rotateAndSelectBlock(movieFrame, bInf, 0);
+        matchedImages = cat(3,matchedImages, nan(size(matchedImages)));
+    end
+end
+
     
 end
 
