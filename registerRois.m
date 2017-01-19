@@ -178,6 +178,7 @@ for cc = whichClusters
                 roiWLoc,bestAngle);
         end
         
+        % save registration results
         rois(cc,bb).w = rotatedRoiW;
         rois(cc,bb).x = repmat(bestXCtr + meanCenter(1:roiWPaddedSz(2)),...
             roiWPaddedSz(1),1);
@@ -186,13 +187,29 @@ for cc = whichClusters
         rois(cc,bb).z =  repmat(bestZ,roiWPaddedSz(1),roiWPaddedSz(2));
     end
     
+    
+    % interpolate z values using planar fit
+    
+    % get registered x, y, z values
     xThisCluster = reshape(xyzrcoClusterPeaks(1,cc,:),[],1);
     yThisCluster = reshape(xyzrcoClusterPeaks(2,cc,:),[],1);
     zThisCluster = reshape(xyzrcoClusterPeaks(3,cc,:),[],1);
-    fitZ = fit([xThisCluster yThisCluster ], zThisCluster,p.Results.zFitStyle,'Robust',p.Results.zFitRobust);
     
-    for bb=whichBlocks
-        rois(cc,bb).zFit = fitZ(rois(cc,bb).x,rois(cc,bb).y);
+    % skip any nans
+    usePts = ~any(isnan([xThisCluster yThisCluster zThisCluster]),2);
+    
+    % if possible...
+    if any(usePts)
+        % compute z plane fit
+        fitZ = fit([xThisCluster(usePts) yThisCluster(usePts) ], zThisCluster(usePts),p.Results.zFitStyle,'Robust',p.Results.zFitRobust);
+        
+        % store result 
+        for bb=whichBlocks
+            rois(cc,bb).zFit = fitZ(rois(cc,bb).x,rois(cc,bb).y);
+        end
+    else
+        % otherwise just use the fit z values
+        rois(cc,bb).zFit = rois(cc,bb).z;
     end
 end
 
