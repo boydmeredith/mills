@@ -1,6 +1,44 @@
-
-function [roisRigid, roisNonrigid, xyzrcoClusterPeaks, params] = ...
-    registerRois(subject, theDate, location, varargin)
+function [roisTransformed, xyzrcoClusterPeaks, roisRigid, params, extras] = registerRois(subject, theDate, location, varargin)
+% identify where recorded ROIs are located in the reference stack
+% 
+% algorithm:
+%
+%   - use previous localization of the 1000-frame averages to approximate location
+%   - perform localization of baseline average image, tightly centered on the approximate location
+%   - compute transformation that maps every pixel in movie space to a pixel in reference space
+%   - apply transformation to every ROI
+%   - return transformed ROIs
+%
+%
+%
+% OUTPUTS:
+%
+%   roisTransformed - C x B struct array with fields
+%                       w - Y x X x R matrix, weights of each ROI
+%                       baseline - Y x X matrix, baseline image
+%                       x - Y x X matrix, x-coordinate of each ROI pixel in the reference space
+%                       y - Y x X matrix, y-coordinate of each ROI pixel in the reference space
+%                       z - Y x X matrix, z-coordinate of each ROI pixel in the reference space
+%                               this is the uniform within each block
+%                       zFit - Y x X matrix, continuously-varying esimate of z-coordinate of each ROI pixel
+%
+%   xyzrcoClusterPeaks - 6 x C x B matrix, each entry the localization for a given cluster and block
+%
+%   roisRigid - same as roisTransformed, but with a limited rigid transformation (translate and rotate)
+%
+%   params - copy of parameters
+%
+%   extras - struct of extra things
+%
+%
+%
+% INPUTS: 
+%
+%   subject - e.g. 'J117'
+%   theDate - e.g. '2015-12-06'
+%   location - e.g. 'L01'
+% 
+%
 
 
 
@@ -9,7 +47,7 @@ addParamValue(p,'whichClusters',[]);
 addParamValue(p,'whichBlocks',[]);
 addParamValue(p,'xMargin',5);
 addParamValue(p,'yMargin',5);
-addParamValue(p,'zFitStyle','poly11');
+addParamValue(p,'zFitStyle','poly22');
 addParamValue(p,'rFitStyle','poly11');
 addParamValue(p,'zFitRobust','Bisquare');
 addParamValue(p,'rFitRobust','Bisquare');
@@ -21,10 +59,10 @@ addParamValue(p,'zNbrhdRange',[-2:2]);
 addParamValue(p,'rNbrhdRange',[-1:.25:1]);
 
 % normalize stack brightness
-addParamValue(p,'normalizeStack',false);
+addParamValue(p,'normalizeStack',true);
 
 % normalize brightness of block image
-addParamValue(p,'normalizeBlock',false);
+addParamValue(p,'normalizeBlock',true);
 
 
 
@@ -35,6 +73,7 @@ parse(p,varargin{:});
 
 params = p.Results;
 
+extras = struct;
 
 whichClusters = p.Results.whichClusters;
 whichBlocks = p.Results.whichBlocks;
@@ -53,6 +92,7 @@ nS = getNameStruct(subject, theDate, location);
 
 % skip if clustering not done yet
 if ~exist(nS.clusterFileName,'file')
+    roisTransformed = [];
     roisRigid = [];
     xyzrcoClusterPeaks = [];
     return
@@ -73,26 +113,32 @@ end
 
 % skip if no cluster info files were found
 if ~exist('nBlocks','var')
+    roisTransformed = [];
     roisRigid = [];
     xyzrcoClusterPeaks = [];
     return
 end
 
-% load first cell finding file to get estimate for cell counts and block
-% size
-%cellfile = load(nS.cellFileNameFcn(1,1),'rois');
-
+% default to all clusters
 if isempty(whichClusters)
     whichClusters = 1:nClusts;
+else
+    whichClusters = whichClusters(:)';
 end
+
+% default to all blocks
 if isempty(whichBlocks)
     whichBlocks = 1:nBlocks;
+else
+    whichBlocks = whichBlocks(:)';
 end
 
-% load registered peaks and the path to the stack used 
+% load:
+%   - localizations of each 1000-frame average
+%   - path to the reference stack
+%   - x-y locations of blocks of the 1000-frame averages
 if isempty(refLocSumm)
     refLocSumm = load(nS.referenceLocalizationFileName,'xyzrcoPeak','stackPath','blockLocations');
-
 end
 
 
@@ -103,51 +149,26 @@ for bb=1:nBlocks
     blockCentersIn1000FrameAverage(bb,:) = [ctr.ctrX ctr.ctrY];
 end
 
-
-
-
-
-% identify center of each block in the 1000-frame average space
-blockCentersIn1000FrameAverage = nan(nBlocks,2);
-for bb=1:nBlocks
-    ctr = getBlockInf(refLocSumm.blockLocations(:,:,bb));
-    blockCentersIn1000FrameAverage(bb,:) = [ctr.ctrX ctr.ctrY];
-end
 
 
 % load stack and get its dimensions
 stackFileName = fullfile(PATH_DATA, refLocSumm.stackPath);
 stackIs = imageSeries(stackFileName);
 stack = squeeze(permute(stackIs.images,[1 2 4 3]));
-stackSz = size(stack);
+
 
 % initialize output variables
-xyzrcoClusterPeaks = nan(6, nClusts, nBlocks);
+roisTransformed(nClusts, nBlocks) = struct('w',[],'x',[],'y',[],'z',[]);
 roisRigid(nClusts, nBlocks) = struct('w',[],'x',[],'y',[],'z',[]);
-roisNonrigid(nClusts, nBlocks) = struct('w',[],'x',[],'y',[],'z',[]);
+xyzrcoClusterPeaks = nan(6, nClusts, nBlocks);
 
 
-% store values for debuggin
-cxList = nan(max(whichClusters),max(whichBlocks));
-cyList = nan(max(whichClusters),max(whichBlocks));
-leashCenters = nan(length(whichClusters),nBlocks,4);
+% store center points of all blocks
+blockCentersX = nan(length(whichClusters),length(whichBlocks));
+blockCentersY = nan(length(whichClusters),length(whichBlocks));
 
 
-
-if p.Results.normalizeStack
-    stackNorm = zeros(size(stack));
-    for zz=1:size(stack,3)
-        stackNorm(:,:,zz) = normalizeImageBrightness(double(stack(:,:,zz)));
-    end
-else
-    stackNorm = stack;
-end
-
-
-
-% store values for debuggin
-cxList = nan(max(whichClusters),max(whichBlocks));
-cyList = nan(max(whichClusters),max(whichBlocks));
+% store leash centers (for debugging)
 leashCenters = nan(length(whichClusters),nBlocks,4);
 
 
@@ -171,13 +192,13 @@ for cc = whichClusters
     
     if isempty(thisClustFrames), continue, end
     
-    % find localization for these frames
-    x=squeeze(refLocSumm.xyzrcoPeak(1,:,thisClustFrames));
-    y=squeeze(refLocSumm.xyzrcoPeak(2,:,thisClustFrames));
-    z=squeeze(refLocSumm.xyzrcoPeak(3,:,thisClustFrames));
-    r=squeeze(refLocSumm.xyzrcoPeak(4,:,thisClustFrames));
+    % get localization of 1000-frame averages corresponding to these frames
+    x = squeeze(refLocSumm.xyzrcoPeak(1,:,thisClustFrames));
+    y = squeeze(refLocSumm.xyzrcoPeak(2,:,thisClustFrames));
+    z = squeeze(refLocSumm.xyzrcoPeak(3,:,thisClustFrames));
+    r = squeeze(refLocSumm.xyzrcoPeak(4,:,thisClustFrames));
     
-    % identify offset between 1000-frame average space and the 512x512 space
+    % identify x-y offset between 1000-frame average space and the 512x512 space
     %   (load safe zone boundaries and use their initial values as offsets
     %   for the current block location centers)
     mc = load(nS.motCorrFileName);
@@ -189,6 +210,7 @@ for cc = whichClusters
     blockCentersIn512x512(:,2) = blockCentersIn1000FrameAverage(:,2) + safeZoneY(1);
     
     % fit a curve to the localization for these frames
+    %   (this fit will be evaluated below to determine the center of a search range for final localization)
     xForFit = repmat(blockCentersIn512x512(:,1),[1 length(thisClustFrames)]);
     yForFit = repmat(blockCentersIn512x512(:,2),[1 length(thisClustFrames)]);
     fitForLeashCenter_x = fit([xForFit(:) yForFit(:)], x(:),'poly22');
@@ -198,29 +220,30 @@ for cc = whichClusters
     
     
     
-    fitZ = fit([x(:) y(:)], z(:),p.Results.zFitStyle,'Robust',p.Results.zFitRobust);
-    fitR = fit([x(:) y(:)], r(:),p.Results.rFitStyle,'Robust',p.Results.rFitRobust);
-    
-    
-    
     for bb = whichBlocks
         if ~mod(bb,6)
             fprintf('  %d...',bb);
         end
 
         
-        % get positioning and average image for block in the cluster
-        [cframes, cx, cy, cIm]= getClusterBlockLocalization(subject,theDate,...
-            location,cc,bb);
-        cxList(cc,bb) = cx;
-        cyList(cc,bb) = cy;
         
-        if isempty(cIm), continue, end
+        % load:
+        %   x-y position of this block (in movie space)
+        %   average baseline image 
+        %   which 1000-frame averages are in this cluster
+        [cframes, blockCenterX, blockCenterY, baselineImage]= ...
+            getClusterBlockLocalization(subject,theDate,location,cc,bb);
+        blockCentersX(cc,bb) = blockCenterX;
+        blockCentersY(cc,bb) = blockCenterY;
         
+        % skip if no baseline image (indicates baseline not computed)
+        if isempty(baselineImage), continue, end
         
+        % verify consitency
         assert(isequal(thisClustFrames,cframes));
         
-        cImSz = size(cIm);
+        
+        cImSz = size(baselineImage);
         
         % load the rois for this cluster and block
         try
@@ -236,20 +259,21 @@ for cc = whichClusters
         
         assert(isequal(cImSz, [size(cellfile.rois,1), size(cellfile.rois,2)]));
         
+        
+        
+        % PERFORM FINAL LOCALIZATION OF THIS BLOCK IN REFERENCE SPACE
+        
+        
         % set up the neighborhood info struct to constrain possible localizations
-        nbrhdInf.xCtr = fitForLeashCenter_x(cx,cy);
-        nbrhdInf.yCtr = fitForLeashCenter_y(cx,cy);
-        nbrhdInf.zCtr = fitForLeashCenter_z(cx,cy);
-        nbrhdInf.rCtr = fitForLeashCenter_r(cx,cy);
+        % evaluate the fit at the actual block center point
+        nbrhdInf.xCtr = fitForLeashCenter_x(blockCenterX,blockCenterY);
+        nbrhdInf.yCtr = fitForLeashCenter_y(blockCenterX,blockCenterY);
+        nbrhdInf.zCtr = fitForLeashCenter_z(blockCenterX,blockCenterY);
+        nbrhdInf.rCtr = fitForLeashCenter_r(blockCenterX,blockCenterY);
         
+        
+        % note the leash center point (for debugging)
         leashCenters(cc,bb,:) = [nbrhdInf.xCtr nbrhdInf.yCtr nbrhdInf.zCtr nbrhdInf.rCtr];
-        
-        % delete!
-        %nbrhdInf.xCtr = cx;
-        %nbrhdInf.yCtr = cy;
-        %nbrhdInf.zCtr = round(fitZ(cx,cy));
-        %nbrhdInf.rCtr = fitR(cx,cy);
-        
         
         
         % set up a binary block location matrix that indicates the subset
@@ -259,9 +283,9 @@ for cc = whichClusters
         
         % normalize block image, if desired
         if p.Results.normalizeBlock
-            cImNorm = normalizeImageBrightness(cIm);
+            cImNorm = normalizeImageBrightness(baselineImage);
         else
-            cImNorm = cIm;
+            cImNorm = baselineImage;
         end
         
         % localize this cluster block to the stack
@@ -274,6 +298,13 @@ for cc = whichClusters
         bestYCtr = xyzrcoClusterPeaks(2,cc,bb);
         bestZ = xyzrcoClusterPeaks(3,cc,bb);
         
+        
+        
+        
+        
+        % PERFORM RIGID TRANSFORMATION OF EACH ROI AND BASELINE IMAGE 
+        
+        
         % figure out how big cIm is going to be when rotated appropriately
         [rotH, rotW] = dimAfterRotation(cImSz(1), cImSz(2), bestAngle);
         padSz = ceil([rotH-cImSz(1)  rotW-cImSz(2)]./2);
@@ -283,33 +314,31 @@ for cc = whichClusters
         roiWLoc = true(size(roiWPadded,1),size(roiWPadded,2));
         %nonNanLoc(~isnan(roiWPadded(:,:,1))) = true;
         
-        
-        % transform each ROI
+        % apply transformation
         roiWPaddedSz = size(roiWPadded);
         rotatedRoiW = nan(roiWPaddedSz);
         for ww = 1:roiWPaddedSz(3)
-            rotatedRoiW(:,:,ww) = rotateAndSelectBlock(roiWPadded(:,:,ww),...
-                roiWLoc,bestAngle);
+            rotatedRoiW(:,:,ww) = rotateAndSelectBlock(roiWPadded(:,:,ww),roiWLoc,bestAngle);
         end
         
         % transform baseline image
-        cImPadded = padarray(cIm,padSz,nan,'both');
+        cImPadded = padarray(baselineImage,padSz,nan,'both');
         blockBaselineTransformed = rotateAndSelectBlock(cImPadded,roiWLoc,bestAngle);
         
         % store in output variable
         roisRigid(cc,bb).w = rotatedRoiW;
         roisRigid(cc,bb).x = repmat(bestXCtr + meanCenter(1:roiWPaddedSz(2)),...
-        rois(cc,bb).w = rotatedRoiW;
-        rois(cc,bb).x = repmat(bestXCtr + meanCenter(1:roiWPaddedSz(2)),...
             roiWPaddedSz(1),1);
         roisRigid(cc,bb).y = repmat(bestYCtr + meanCenter(1:roiWPaddedSz(1))'...
             , 1,roiWPaddedSz(2));
         roisRigid(cc,bb).z =  repmat(bestZ,roiWPaddedSz(1),roiWPaddedSz(2));
         roisRigid(cc,bb).baseline = blockBaselineTransformed;
-        rois(cc,bb).z =  repmat(bestZ,roiWPaddedSz(1),roiWPaddedSz(2));
-        rois(cc,bb).baseline = blockBaselineTransformed;
         
-        % plot, if desired
+        
+        
+        
+        
+        % plot leash center vs final localization, if desired
         if ~isempty(p.Results.plot)
             figure(p.Results.plot);clf
             plot(leashCenters(cc,:,1),leashCenters(cc,:,2),'.')
@@ -320,104 +349,128 @@ for cc = whichClusters
         
     end
     
-    % interpolate z value at each pixel by fitting Z
-    xThisCluster = reshape(xyzrcoClusterPeaks(1,cc,:),[],1);
-    yThisCluster = reshape(xyzrcoClusterPeaks(2,cc,:),[],1);
-    zThisCluster = reshape(xyzrcoClusterPeaks(3,cc,:),[],1);
-    fitZ = fit([xThisCluster yThisCluster ], zThisCluster,p.Results.zFitStyle,'Robust',p.Results.zFitRobust);
     
-    % skip any nans
-    usePts = ~any(isnan([xThisCluster yThisCluster zThisCluster]),2);
     
-    % if possible...
-    if any(usePts)
-        % compute z plane fit
-        fitZ = fit([xThisCluster(usePts) yThisCluster(usePts) ], zThisCluster(usePts),p.Results.zFitStyle,'Robust',p.Results.zFitRobust);
-        
-        % store result 
-        for bb=whichBlocks
-            rois(cc,bb).zFit = fitZ(rois(cc,bb).x,rois(cc,bb).y);
-        end
-    else
-        % otherwise just use the fit z values
-        rois(cc,bb).zFit = rois(cc,bb).z;
+    
+    
+    
+    
+    
+    
+    % USE FINAL LOCALIZATION TO COMPUTE TRANSFORMATION FROM MOVIE SPACE TO REFERENCE SPACE
+    
+    
+    % get summary of xyz points for this cluster
+    blockInRefX = reshape(xyzrcoClusterPeaks(1,cc,:),[],1);
+    blockInRefY = reshape(xyzrcoClusterPeaks(2,cc,:),[],1);
+    blockInRefZ = reshape(xyzrcoClusterPeaks(3,cc,:),[],1);
+    
+    % choose only points that are not oddballs
+    fitPoints = ~reshape(xyzrcoClusterPeaks(6, cc, :),[],1);
+    
+    % if insufficiently many non-oddballs, just use them all
+    if sum(fitPoints) < nBlocks/2
+       fitPoints = true(size(fitPoints));
     end
     
-
-    % interpolate z value to every point in the image space
-    [xx,yy] = meshgrid(1:512);
-    zFitInMovieSpace = fit([cxList' cyList'], zThisCluster,'poly22');
-    zMovieSpace = zFitInMovieSpace(xx,yy);
+    % get transformation
+    tform = cp2tform([ blockCentersX(cc,fitPoints)' blockCentersY(cc,fitPoints)'], [ blockInRefX(fitPoints) blockInRefY(fitPoints)], 'lwm');
     
     
-    % compute overall transformation from image space to reference space
-    goodOnes = ~reshape(xyzrcoClusterPeaks(6, cc, :),[],1);
-    tform = cp2tform([ cxList(goodOnes)' cyList(goodOnes)'], [ xThisCluster(goodOnes) yThisCluster(goodOnes)], 'lwm');
     
-    % for each block
+    
+    
+    % APPLY TRANSFORMATION TO EACH BLOCK
+    
+    
     for bb = whichBlocks
         
         % get block range and average baseline image
-        [~, ~, ~, cIm, blockRange]= getClusterBlockLocalization(subject,theDate,location,cc,bb);
+        [~, ~, ~, baselineImage, blockRange]= getClusterBlockLocalization(subject,theDate,location,cc,bb);
         
-        % transform baseline image
-        [cImTransformed, xData, yData] = imtransform(cIm,tform,'udata',...
-            blockRange.blockRangeX,'vdata',blockRange.blockRangeY,'fillvalues', nan);
-        
-        % transform each ROI
+        % transform baseline image and each ROI (all at once)
         cellfile  = load(nS.cellFileNameFcn(cc,bb),'rois');
-        roisTransformed = imtransform(cellfile.rois,tform,'udata',...
-            blockRange.blockRangeX,'vdata',blockRange.blockRangeY,'fillvalues', nan);
+        [dataTransformed, xData, yData] = imtransform(cat(3,baselineImage,cellfile.rois),tform,...
+            'udata',blockRange.blockRangeX,'vdata',blockRange.blockRangeY,'fillvalues', nan);
         
-        
-        % fit z values
-        yPix = blockRange.blockRangeY(1):blockRange.blockRangeY(2);
-        xPix = blockRange.blockRangeX(1):blockRange.blockRangeX(2);
-        zFitValues = imtransform(zMovieSpace(yPix,xPix),tform,'udata',...
-            blockRange.blockRangeX,'vdata',blockRange.blockRangeY,'fillvalues', nan);
+        bsImTransformed = dataTransformed(:,:,1);
+        roiShapesTransformed = dataTransformed(:,:,2:end);
         
         % note the x and y values of pixels in the transformed image
-        xVals = linspace(round(xData(1)),round(xData(2)),size(cImTransformed,2));
-        yVals = linspace(round(yData(1)),round(yData(2)),size(cImTransformed,1));
+        xVals = linspace(round(xData(1)),round(xData(2)),size(bsImTransformed,2));
+        yVals = linspace(round(yData(1)),round(yData(2)),size(bsImTransformed,1));
         
-        roisNonrigid(cc,bb).w = roisTransformed;
-        roisNonrigid(cc,bb).x = repmat(xVals,length(yVals),1);
-        roisNonrigid(cc,bb).y = repmat(yVals',1,length(xVals));
+        % set to nan where there is no image data
+        xInd = repmat(xVals,length(yVals),1);
+        yInd = repmat(yVals',1,length(xVals));
+        xInd(isnan(bsImTransformed)) = nan;
+        yInd(isnan(bsImTransformed)) = nan;
+        
+        roisTransformed(cc,bb).w = roiShapesTransformed;
+        roisTransformed(cc,bb).x = xInd;
+        roisTransformed(cc,bb).y = yInd;
         % use same Z value as above
-        roisNonrigid(cc,bb).z =  repmat(round(mean(roisRigid(cc,bb).z(:))),length(yVals),length(xVals));
-        roisNonrigid(cc,bb).zFit =  zFitValues;
-        roisNonrigid(cc,bb).baseline = cImTransformed;
+        roisTransformed(cc,bb).z =  repmat(round(mean(roisRigid(cc,bb).z(:))),length(yVals),length(xVals));
+        roisTransformed(cc,bb).baseline = bsImTransformed;
     end
     
 
+    
+    
+    % fit Z (in reference frame space) so that Z values can be interpolated everywhere
+    
+    % if there are sufficiently many non-nan values...
+    usePts = ~any(isnan([blockInRefX blockInRefY blockInRefZ]),2);
+    if sum(usePts) > nBlocks/2
+        
+        % compute z plane fit
+        fitZ = fit([blockInRefX(usePts) blockInRefY(usePts) ], blockInRefZ(usePts),...
+            p.Results.zFitStyle,'Robust',p.Results.zFitRobust);
+        
+        % store result 
+        for bb=whichBlocks
+            roisRigid(cc,bb).zFit = fitZ(roisRigid(cc,bb).x,roisRigid(cc,bb).y);
+            roisTransformed(cc,bb).zFit = fitZ(roisTransformed(cc,bb).x,roisTransformed(cc,bb).y);
+        end
+    else
+        % otherwise just use the fit z values
+        roisRigid(cc,bb).zFit = roisRigid(cc,bb).z;
+        roisTransformed(cc,bb).zFit = roisTransformed(cc,bb).z;
+    end
+    
+    disp(' ')
 end
 
 
+% populate extras
+extras.leashCenters = leashCenters;
+extras.blockCentersX = blockCentersX;
+extras.blockCentersY = blockCentersY;
+extras.tformMovieToReference = tform;
+extras.fitZfromXY = fitZ;
 
 
-
-%%
 if 0 % for debugging
     
-    %%
+    %
     figure;hist(leashCenters(cc,:,2)' - squeeze(xyzrcoClusterPeaks(2,cc,:)),50)
     
-    %%
+    %
     
     stackNorm = zeros(size(stack));
     for zz=1:size(stack,3)
         stackNorm(:,:,zz) = normalizeImageBrightness(double(stack(:,:,zz)));
     end
-    %%
+    %
     figure(101);clf
     plot(leashCenters(cc,:,1),leashCenters(cc,:,2),'.')
     hold on;plot(squeeze(xyzrcoClusterPeaks(1,cc,:)),squeeze(xyzrcoClusterPeaks(2,cc,:)),'ro')
     axis image
     
-    %%
+    %
     
     
-    %%
+    %
     
     
     
@@ -425,9 +478,9 @@ if 0 % for debugging
     plot(cxList(cc,:),cyList(cc,:),'.')
 
     
-    xErrors = leashCenters(cc,:,1)' - xThisCluster;
-    yErrors = leashCenters(cc,:,2)' - yThisCluster;
-    zErrors = leashCenters(cc,:,3)' - zThisCluster;
+    xErrors = leashCenters(cc,:,1)' - blockInRefX;
+    yErrors = leashCenters(cc,:,2)' - blockInRefY;
+    zErrors = leashCenters(cc,:,3)' - blockInRefZ;
     
     figure;
     plot(abs(zErrors), abs(xErrors),'o')
