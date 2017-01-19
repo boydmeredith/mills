@@ -1,3 +1,4 @@
+
 function [roisRigid, roisNonrigid, xyzrcoClusterPeaks, params] = ...
     registerRois(subject, theDate, location, varargin)
 
@@ -24,6 +25,7 @@ addParamValue(p,'normalizeStack',false);
 
 % normalize brightness of block image
 addParamValue(p,'normalizeBlock',false);
+
 
 
 addParamValue(p,'plot',[]);
@@ -90,7 +92,19 @@ end
 % load registered peaks and the path to the stack used 
 if isempty(refLocSumm)
     refLocSumm = load(nS.referenceLocalizationFileName,'xyzrcoPeak','stackPath','blockLocations');
+
 end
+
+
+% identify center of each block in the 1000-frame average space
+blockCentersIn1000FrameAverage = nan(nBlocks,2);
+for bb=1:nBlocks
+    ctr = getBlockInf(refLocSumm.blockLocations(:,:,bb));
+    blockCentersIn1000FrameAverage(bb,:) = [ctr.ctrX ctr.ctrY];
+end
+
+
+
 
 
 % identify center of each block in the 1000-frame average space
@@ -111,6 +125,24 @@ stackSz = size(stack);
 xyzrcoClusterPeaks = nan(6, nClusts, nBlocks);
 roisRigid(nClusts, nBlocks) = struct('w',[],'x',[],'y',[],'z',[]);
 roisNonrigid(nClusts, nBlocks) = struct('w',[],'x',[],'y',[],'z',[]);
+
+
+% store values for debuggin
+cxList = nan(max(whichClusters),max(whichBlocks));
+cyList = nan(max(whichClusters),max(whichBlocks));
+leashCenters = nan(length(whichClusters),nBlocks,4);
+
+
+
+if p.Results.normalizeStack
+    stackNorm = zeros(size(stack));
+    for zz=1:size(stack,3)
+        stackNorm(:,:,zz) = normalizeImageBrightness(double(stack(:,:,zz)));
+    end
+else
+    stackNorm = stack;
+end
+
 
 
 % store values for debuggin
@@ -267,11 +299,15 @@ for cc = whichClusters
         % store in output variable
         roisRigid(cc,bb).w = rotatedRoiW;
         roisRigid(cc,bb).x = repmat(bestXCtr + meanCenter(1:roiWPaddedSz(2)),...
+        rois(cc,bb).w = rotatedRoiW;
+        rois(cc,bb).x = repmat(bestXCtr + meanCenter(1:roiWPaddedSz(2)),...
             roiWPaddedSz(1),1);
         roisRigid(cc,bb).y = repmat(bestYCtr + meanCenter(1:roiWPaddedSz(1))'...
             , 1,roiWPaddedSz(2));
         roisRigid(cc,bb).z =  repmat(bestZ,roiWPaddedSz(1),roiWPaddedSz(2));
         roisRigid(cc,bb).baseline = blockBaselineTransformed;
+        rois(cc,bb).z =  repmat(bestZ,roiWPaddedSz(1),roiWPaddedSz(2));
+        rois(cc,bb).baseline = blockBaselineTransformed;
         
         % plot, if desired
         if ~isempty(p.Results.plot)
@@ -341,6 +377,7 @@ for cc = whichClusters
         roisNonrigid(cc,bb).baseline = cImTransformed;
     end
     
+
 end
 
 
