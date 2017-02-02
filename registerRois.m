@@ -167,6 +167,9 @@ xyzrcoClusterPeaks = nan(6, nClusts, nBlocks);
 blockCentersX = nan(length(whichClusters),length(whichBlocks));
 blockCentersY = nan(length(whichClusters),length(whichBlocks));
 
+% store list of which points are used for fit
+allFitPoints = nan(length(whichClusters),length(whichBlocks));
+
 
 % store leash centers (for debugging)
 leashCenters = nan(length(whichClusters),nBlocks,4);
@@ -366,12 +369,15 @@ for cc = whichClusters
     blockInRefZ = reshape(xyzrcoClusterPeaks(3,cc,:),[],1);
     
     % choose only points that are not oddballs
-    fitPoints = ~reshape(xyzrcoClusterPeaks(6, cc, :),[],1);
+    fitPoints = reshape(xyzrcoClusterPeaks(6, cc, :),[],1)==false;
     
-    % if insufficiently many non-oddballs, just use them all
+    % if insufficiently many non-oddballs, just use them all (except the nans)
     if sum(fitPoints) < nBlocks/2
-       fitPoints = true(size(fitPoints));
+       fitPoints = ~isnan(blockInRefX);
     end
+    
+    % store which fit points were used
+    allFitPoints(cc,:) = fitPoints;
     
     % get transformation
     tform = cp2tform([ blockCentersX(cc,fitPoints)' blockCentersY(cc,fitPoints)'], [ blockInRefX(fitPoints) blockInRefY(fitPoints)], 'lwm');
@@ -388,8 +394,16 @@ for cc = whichClusters
         % get block range and average baseline image
         [~, ~, ~, baselineImage, blockRange]= getClusterBlockLocalization(subject,theDate,location,cc,bb);
         
+        
+        % load ROIs
+        try
+            cellfile  = load(nS.cellFileNameFcn(cc,bb),'rois');
+        catch
+            fprintf('warning: can not load %s\n',nS.cellFileNameFcn(cc,bb))
+            continue
+        end
+        
         % transform baseline image and each ROI (all at once)
-        cellfile  = load(nS.cellFileNameFcn(cc,bb),'rois');
         [dataTransformed, xData, yData] = imtransform(cat(3,baselineImage,cellfile.rois),tform,...
             'udata',blockRange.blockRangeX,'vdata',blockRange.blockRangeY,'fillvalues', nan);
         
@@ -446,6 +460,7 @@ end
 extras.leashCenters = leashCenters;
 extras.blockCentersX = blockCentersX;
 extras.blockCentersY = blockCentersY;
+extras.fitPoints = allFitPoints;
 extras.tformMovieToReference = tform;
 extras.fitZfromXY = fitZ;
 
