@@ -52,7 +52,8 @@ addParamValue(p,'rFitStyle','poly11');
 addParamValue(p,'zFitRobust','Bisquare');
 addParamValue(p,'rFitRobust','Bisquare');
 
-%addParamValue(p,'stack',[]);
+addParamValue(p,'loadedStackIs',[]);
+addParamValue(p,'loadedStack',[]);
 addParamValue(p,'refLocSumm',[]);
 
 addParamValue(p,'zNbrhdRange',[-2:2]);
@@ -153,8 +154,16 @@ end
 
 % load stack and get its dimensions
 stackFileName = fullfile(PATH_DATA, refLocSumm.stackPath);
-stackIs = imageSeries(stackFileName);
-stack = squeeze(permute(stackIs.images,[1 2 4 3]));
+if ~isempty(p.Results.loadedStack)
+    stack = p.Results.loadedStack;
+else
+    if isempty(p.Results.loadedStackIs)
+        stackIs = imageSeries(stackFileName);
+    else
+        stackIs = p.Results.loadedStackIs;
+    end
+    stack = squeeze(permute(stackIs.images,[1 2 4 3]));
+end
 
 
 % initialize output variables
