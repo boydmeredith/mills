@@ -226,6 +226,8 @@ function [roiMaxToReturn, roiMaxXRange, roiMaxYRange] = stitchRoisRigid(handles)
         rotatedRoiW = rotateAndSelectBlock(max(roiWPadded,[],3),...
             roiWLoc,bestAngle);
         
+        meanCenter = @(x)x-mean(x(:));
+        
         % store in output variable
         autoPts = handles.sessionData{handles.currentSessionInd...
             }{handles.currentChunkInd}.autoPts;
@@ -786,3 +788,6 @@ else
 end
 
 hold(handles.imRefAx, 'on');
+
+
+uicontrol(handles.sessionChunkSliderPage)
