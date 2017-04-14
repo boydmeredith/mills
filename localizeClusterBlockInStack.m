@@ -294,13 +294,18 @@ for cc = whichClusters
     end
 end
 
+
+% SAVE AUTOMATIC LOCALIZATION
+
+
+% generate save name
 filenameToSave = [nS.prefix '_referenceLocalizationBaseline.mat'];
-if exist(filenameToSave,'file')
-    try
-        archiveSave(filenameToSave)
-    catch
-        error('couldn''t archive file')
-    end
-end
-    
-save(filenameToSave,'xyzrcoClusterPeaks_Auto','params')
+
+% archive existing file, if there is one
+archiveFile(filenameToSave,false)
+
+% save
+xyzrcoClusterPeaks_auto = xyzrcoClusterPeaks;
+save(filenameToSave,'xyzrcoClusterPeaks_auto','params')
+
+
