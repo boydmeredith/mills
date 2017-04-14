@@ -6,6 +6,8 @@ function [xyzrcoClusterPeaks, params] = ...
 %
 %   - use previous localization of the 1000-frame averages to approximate location
 %   - perform localization of baseline average image, tightly centered on the approximate location
+%
+% steps for subsequent function:
 %   - compute transformation that maps every pixel in movie space to a pixel in reference space
 %   - apply transformation to every ROI
 %   - return transformed ROIs
@@ -294,18 +296,23 @@ for cc = whichClusters
     end
 end
 
-
-% SAVE AUTOMATIC LOCALIZATION
-
-
-% generate save name
 filenameToSave = [nS.prefix '_referenceLocalizationBaseline.mat'];
+if exist(filenameToSave,'file')
+    try
+        archiveSave(filenameToSave)
+    catch
+        error('couldn''t archive file')
+    end
+end
+    
+% note information about stack
+stackInfo = struct;
+stackInfo.firstIm = stack(:,:,1);
+stackInfo.stackSize = size(stack);
+params.stackInfo = stackInfo;
 
-% archive existing file, if there is one
-archiveFile(filenameToSave,false)
+params = rmfield(params,{'loadedStackIs','loadedStack'});
 
-% save
-xyzrcoClusterPeaks_auto = xyzrcoClusterPeaks;
-save(filenameToSave,'xyzrcoClusterPeaks_auto','params')
+save(filenameToSave,'xyzrcoClusterPeaks_Auto','params')
 
 
