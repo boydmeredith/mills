@@ -137,11 +137,14 @@ if ~isfield(handles.sessionData{sessInd}{chunkInd},'autoPts') ...
     end
 end
 
-% get the rois 
+% get the rois
 if ~isfield(handles.sessionData{sessInd}{chunkInd},'roiMax') ...
-    || isempty(handles.sessionData{sessInd}{chunkInd}.roiMax)
-
-    [handles.sessionData{sessInd}{chunkInd}.roiMax] = loadRoiMax(handles);
+        || isempty(handles.sessionData{sessInd}{chunkInd}.roiMax)
+    
+    try
+        [handles.sessionData{sessInd}{chunkInd}.roiMax] = loadRoiMax(handles);
+    catch
+    end
     
 end
 
