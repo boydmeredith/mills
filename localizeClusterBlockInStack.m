@@ -1,5 +1,5 @@
 function [xyzrcoClusterPeaks, params] = ...
-    localizeClusterBlockInStack(subject, theDate, location, varargin)
+    localizeClusterBlockInStack(subject, theDate, location, stackPath, varargin)
 % identify where recorded ROIs are located in the reference stack
 % 
 % algorithm:
@@ -76,8 +76,6 @@ addParamValue(p,'plot',[]);
 parse(p,varargin{:});
 
 params = p.Results;
-
-
 
 whichClusters = p.Results.whichClusters;
 whichBlocks = p.Results.whichBlocks;
@@ -296,23 +294,29 @@ for cc = whichClusters
     end
 end
 
-filenameToSave = [nS.prefix '_referenceLocalizationBaseline.mat'];
-if exist(filenameToSave,'file')
-    try
-        archiveSave(filenameToSave)
-    catch
-        error('couldn''t archive file')
-    end
-end
-    
+
+
+% generate save name 
+filenameToSave = [nS.prefix '_referenceLocalizationBaseline.mat']; 
+
+% archive existing file, if there is one 
+archiveFile(filenameToSave,false)
+
+
 % note information about stack
 stackInfo = struct;
 stackInfo.firstIm = stack(:,:,1);
 stackInfo.stackSize = size(stack);
+stackInfo.stackPath = stackPath;
 params.stackInfo = stackInfo;
 
+% remove possibly large fields
 params = rmfield(params,{'loadedStackIs','loadedStack'});
 
-save(filenameToSave,'xyzrcoClusterPeaks_Auto','params')
+% save 
+xyzrcoClusterPeaks_auto = xyzrcoClusterPeaks; 
+save(filenameToSave,'xyzrcoClusterPeaks_auto','params')
+
+
 
 
