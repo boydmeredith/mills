@@ -144,6 +144,7 @@ if ~isfield(handles.sessionData{sessInd}{chunkInd},'roiMax') ...
     try
         [handles.sessionData{sessInd}{chunkInd}.roiMax] = loadRoiMax(handles);
     catch
+        error('failed to load rois')
     end
     
 end
@@ -183,12 +184,17 @@ for bb = 1:prod(handles.chunkParams{handles.currentSessionInd}{handles.currentCh
         cellfilename = sprintf(handles.nS.cellFileNameFcn(handles.currentChunkInd,bb),...
             dateStr);
         
-        % load the rois from the cell file
-        cellfile = load(cellfilename,'rois');
-
-        thisRoiMax = max(bsxfun(@rdivide,cellfile.rois,max(max(cellfile.rois,[],1),[],2)),[],3);
-        roiMax{handles.currentChunkInd}{bb} = thisRoiMax;
-        save(handles.nS.refLocBaselineFileName, 'roiMax', '-append')
+        if ~exist(cellfilename,'file')
+            warning('could not find an ROI file for block %i',bb);
+            roiMax{handles.currentChunkInd}{bb} = [];
+        else
+        
+            % load the rois from the cell file
+            cellfile = load(cellfilename,'rois');
+            thisRoiMax = max(bsxfun(@rdivide,cellfile.rois,max(max(cellfile.rois,[],1),[],2)),[],3);
+            roiMax{handles.currentChunkInd}{bb} = thisRoiMax;
+        end
+            save(handles.nS.refLocBaselineFileName, 'roiMax', '-append')
         
     end
     roiMaxToReturn = roiMax{handles.currentChunkInd};
@@ -212,6 +218,9 @@ function [roiMaxToReturn, roiMaxXRange, roiMaxYRange] = stitchRoisRigid(handles)
     
     for bb = 1:length(handles.sessionData{sessInd}{chunkInd}.roiMax)
         thisRoiMax = handles.sessionData{sessInd}{chunkInd}.roiMax{bb};
+        
+        if isempty(thisRoiMax), continue; end
+        
         cImSz = size(thisRoiMax);
         
         %figure out how big cIm is going to be when rotated appropriately
@@ -405,7 +414,7 @@ handles.currentChunkInd = 1;
 handles = loadDataset(handles);
 
 % update the plot
-updatePlot(handles);
+handles = updatePlot(handles);
 
 % Choose default command line output for reviewRegistration2
 handles.output = hObject;
@@ -464,7 +473,7 @@ function imgRefToggle_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of imgRefToggle
-updatePlot(handles)
+handles = updatePlot(handles)
 
 % --- Executes on button press in rigidToggle.
 function rigidToggle_Callback(hObject, eventdata, handles)
@@ -473,7 +482,7 @@ function rigidToggle_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of rigidToggle
-updatePlot(handles)
+handles = updatePlot(handles)
 
 % --- Executes on button press in meanMultiZToggle.
 function meanMultiZToggle_Callback(hObject, eventdata, handles)
@@ -546,7 +555,7 @@ handles = loadDataset(handles);
 
 
 % replot
-updatePlot(handles)
+handles = updatePlot(handles)
 
 % handles = loadClusterPeaks(hObject,handles);
 % plotBlockPositions(hObject,handles)
@@ -603,7 +612,7 @@ set(handles.sessionChunkSliderPage,'Value',handles.sessionStartChunk(sessionNum)
 handles = loadDataset(handles);
 
 % replot
-updatePlot(handles)
+handles = updatePlot(handles)
 
 guidata(hObject, handles);
 
@@ -644,7 +653,7 @@ set(handles.sessionChunkSliderPage,'Value',...
 handles = loadDataset(handles);
 
 % replot
-updatePlot(handles)
+handles = updatePlot(handles)
 
 guidata(hObject, handles);
 
@@ -700,7 +709,7 @@ function displayStyleGroup_SelectionChangedFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 guidata(hObject,handles)
-updatePlot(handles)
+handles = updatePlot(handles)
         
 
 function tform = nonRigidTform(handles)
@@ -728,7 +737,7 @@ tform = cp2tform(autoPts(:,1:2), autoPts(:,3:4), 'lwm');
 
 
 
-function [] = updatePlot(handles)
+function handles = updatePlot(handles)
 
 cla(handles.imRefAx);
 
